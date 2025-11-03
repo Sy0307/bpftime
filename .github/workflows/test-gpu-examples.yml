@@ -1,0 +1,424 @@
+name: Build and run GPU integrated tests (examples)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["*"]
+  pull_request:
+    branches: ["master", "main"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+env:
+  BPFTIME_VM_NAME: llvm
+
+jobs:
+  build-runtime-gpu:
+    runs-on: [self-hosted, Linux, X64, gpu]
+    strategy:
+      matrix:
+        enable_jit:
+          - true
+          - false
+    steps:
+      - name: Configure proxy for China
+        run: |
+          echo "Setting up proxy for China network..."
+          export http_proxy=http://192.168.15.1:2345
+          export https_proxy=http://192.168.15.1:2345
+          export HTTP_PROXY=http://192.168.15.1:2345
+          export HTTPS_PROXY=http://192.168.15.1:2345
+          export no_proxy=localhost,127.0.0.1,192.168.0.0/16
+          echo "http_proxy=http://192.168.15.1:2345" >> $GITHUB_ENV
+          echo "https_proxy=http://192.168.15.1:2345" >> $GITHUB_ENV
+          echo "HTTP_PROXY=http://192.168.15.1:2345" >> $GITHUB_ENV
+          echo "HTTPS_PROXY=http://192.168.15.1:2345" >> $GITHUB_ENV
+          echo "no_proxy=localhost,127.0.0.1,192.168.0.0/16" >> $GITHUB_ENV
+          git config --add http.proxy http://192.168.15.1:2345
+          git config --add https.proxy http://192.168.15.1:2345
+
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - name: Check and install required tools
+        run: |
+          echo "Checking installed tools..."
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential llvm-dev llvm-18-dev cmake \
+            libboost-all-dev libzstd-dev pkg-config ninja-build lcov tree
+          
+          # Check CUDA
+          nvcc --version || echo "nvcc not found (CUDA compiler)"
+          echo "CUDA location: $(which nvcc)"
+
+      - name: Build and install runtime with CUDA support (with llvm-jit)
+        if: ${{matrix.enable_jit}}
+        run: |
+          cmake -B build -S . \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DBPFTIME_LLVM_JIT=1 \
+            -DTEST_LCOV=YES \
+            -DBUILD_BPFTIME_DAEMON=1 \
+            -DBPFTIME_ENABLE_CUDA_ATTACH=ON \
+            -DBPFTIME_CUDA_ROOT="/usr/local/cuda-12.6" \
+            -DLLVM_DIR="/usr/lib/llvm-18/lib/cmake/llvm/" \
+            -DCMAKE_CXX_FLAGS="-DDEFAULT_LOGGER_OUTPUT_PATH='\"console\"'" \
+            -G Ninja
+          cmake --build build --config RelWithDebInfo --target install -j
+
+      - name: Build and install runtime with CUDA support (without llvm-jit)
+        if: ${{!matrix.enable_jit}}
+        run: |
+          cmake -B build -S . \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DBPFTIME_LLVM_JIT=0 \
+            -DTEST_LCOV=YES \
+            -DBUILD_BPFTIME_DAEMON=1 \
+            -DBPFTIME_ENABLE_CUDA_ATTACH=ON \
+            -DBPFTIME_CUDA_ROOT="/usr/local/cuda-12.6" \
+            -DLLVM_DIR="/usr/lib/llvm-18/lib/cmake/llvm/" \
+            -DCMAKE_CXX_FLAGS="-DDEFAULT_LOGGER_OUTPUT_PATH='\"console\"'" \
+            -G Ninja
+          cmake --build build --config RelWithDebInfo --target install -j
+
+      - name: Build GPU examples
+        run: |
+          echo "Building GPU examples..."
+          
+          # List of GPU examples to build
+          GPU_EXAMPLES="kernelretsnoop threadhist cuda-counter launchlate mem_trace"
+          
+          for example_name in $GPU_EXAMPLES; do
+            if [ -d "example/gpu/$example_name" ] && [ -f "example/gpu/$example_name/Makefile" ]; then
+              echo "Building GPU example: $example_name..."
+              if ! make -C "example/gpu/$example_name" -j; then
+                echo "Warning: Failed to build $example_name, continuing..."
+              fi
+            fi
+          done
+
+      - name: Package gcno files
+        run: |
+          find . -type f -name "*.gcno" | tar --create --gzip --file=gcno_files.tar.gz --files-from=-
+          ls -la
+          pwd
+          tree . || true
+
+      - name: Upload gcno file
+        uses: actions/upload-artifact@v4
+        with:
+          name: gcno-files-gpu-${{matrix.enable_jit && 'jit' || 'no-jit'}}
+          include-hidden-files: true
+          path: |
+            ./gcno_files.tar.gz
+
+      - name: Upload build results (without jit)
+        uses: actions/upload-artifact@v4
+        if: ${{!matrix.enable_jit}}
+        with:
+          name: runtime-package-gpu-no-jit
+          include-hidden-files: true
+          path: |
+            ~/.bpftime
+
+      - name: Upload build results (with jit)
+        uses: actions/upload-artifact@v4
+        if: ${{matrix.enable_jit}}
+        with:
+          name: runtime-package-gpu-jit
+          include-hidden-files: true
+          path: |
+            ~/.bpftime
+
+  test-gpu-examples:
+    runs-on: [self-hosted, Linux, X64, gpu]
+    needs: [build-runtime-gpu]
+    strategy:
+      fail-fast: false
+      matrix:
+        enable_jit:
+          - true
+          - false
+        examples:
+          - path: kernelretsnoop
+            executable: ./kernelretsnoop
+            victim: ./vec_add
+            expected_str: "Thread ("
+            name: kernelretsnoop
+            server_timeout: 15
+          - path: threadhist
+            executable: ./threadhist
+            victim: ./vec_add
+            expected_str: "Thread "
+            name: threadhist
+            server_timeout: 15
+          - path: cuda-counter
+            executable: ./cuda_probe
+            victim: ./vec_add
+            expected_str: "Entered _Z9vectorAddPKfS0_Pf"
+            name: cuda-counter
+            server_timeout: 15
+          - path: launchlate
+            executable: ./launchlate
+            victim: ./vec_add
+            expected_str: "Monitoring CUDA kernel launch latency"
+            name: launchlate
+            server_timeout: 15
+          - path: mem_trace
+            executable: ./mem_trace
+            victim: ./vec_add
+            expected_str: "mem_traces:"
+            name: mem_trace
+            server_timeout: 15
+
+    steps:
+      - name: Configure proxy for China
+        run: |
+          echo "Setting up proxy for China network..."
+          export http_proxy=http://192.168.15.1:2345
+          export https_proxy=http://192.168.15.1:2345
+          export HTTP_PROXY=http://192.168.15.1:2345
+          export HTTPS_PROXY=http://192.168.15.1:2345
+          export no_proxy=localhost,127.0.0.1,192.168.0.0/16
+          echo "http_proxy=http://192.168.15.1:2345" >> $GITHUB_ENV
+          echo "https_proxy=http://192.168.15.1:2345" >> $GITHUB_ENV
+          echo "HTTP_PROXY=http://192.168.15.1:2345" >> $GITHUB_ENV
+          echo "HTTPS_PROXY=http://192.168.15.1:2345" >> $GITHUB_ENV
+          echo "no_proxy=localhost,127.0.0.1,192.168.0.0/16" >> $GITHUB_ENV
+
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - name: Download prebuilt runtime (with jit)
+        if: ${{matrix.enable_jit}}
+        uses: actions/download-artifact@v4
+        with:
+          name: runtime-package-gpu-jit
+          path: ~/.bpftime
+
+      - name: Download prebuilt runtime (without jit)
+        if: ${{!matrix.enable_jit}}
+        uses: actions/download-artifact@v4
+        with:
+          name: runtime-package-gpu-no-jit
+          path: ~/.bpftime
+
+      - name: Download gcno files
+        uses: actions/download-artifact@v4
+        with:
+          name: gcno-files-gpu-${{matrix.enable_jit && 'jit' || 'no-jit'}}
+          path: .
+
+      - name: Extract gcno files
+        run: |
+          ls -lah .
+          tar -zxvf gcno_files.tar.gz
+          pwd
+
+      - name: Set permissions
+        run: |
+          chmod +x ~/.bpftime/*
+
+      - name: Show downloaded artifacts
+        run: |
+          ls ~/.bpftime
+
+      - name: Build test assets
+        run: |
+          echo "Building GPU example: ${{matrix.examples.path}}"
+          make -C example/gpu/${{matrix.examples.path}} -j
+
+      - name: Set BPFTIME_VM_NAME for ubpf
+        if: "!matrix.enable_jit"
+        run: |
+          echo "BPFTIME_VM_NAME=ubpf" >> $GITHUB_ENV
+
+      - name: Create test runner script
+        run: |
+          cat > /tmp/run_gpu_test.py << 'EOF'
+          #!/usr/bin/env python3
+          import subprocess
+          import time
+          import sys
+          import os
+          import signal
+          
+          def run_gpu_test(server_cmd, client_cmd, expected_str, timeout):
+              """Run GPU eBPF test with server and client processes"""
+              print(f"Starting server: {server_cmd}")
+              print(f"Will run client: {client_cmd}")
+              print(f"Expected output: {expected_str}")
+              
+              # Start server process
+              server_env = os.environ.copy()
+              server_env['BPFTIME_SHM_MEMORY_MB'] = '1000'
+              server_env['BPFTIME_LOG_OUTPUT'] = 'console'
+              server_env['LD_PRELOAD'] = '/github/home/.bpftime/libbpftime-syscall-server.so'
+              
+              server_proc = subprocess.Popen(
+                  server_cmd,
+                  shell=True,
+                  env=server_env,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.STDOUT,
+                  text=True,
+                  preexec_fn=os.setsid
+              )
+              
+              # Wait for server to be ready
+              print("Waiting for server to initialize...")
+              time.sleep(3)
+              
+              # Start client process
+              client_env = os.environ.copy()
+              client_env['BPFTIME_LOG_OUTPUT'] = 'console'
+              client_env['LD_PRELOAD'] = '/github/home/.bpftime/libbpftime-agent.so'
+              
+              print("Starting client...")
+              client_proc = subprocess.Popen(
+                  client_cmd,
+                  shell=True,
+                  env=client_env,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.STDOUT,
+                  text=True
+              )
+              
+              # Collect output from both processes
+              server_output = []
+              client_output = []
+              found_expected = False
+              start_time = time.time()
+              
+              while time.time() - start_time < timeout:
+                  # Read server output
+                  if server_proc.poll() is None:
+                      try:
+                          line = server_proc.stdout.readline()
+                          if line:
+                              line = line.strip()
+                              server_output.append(line)
+                              print(f"[SERVER] {line}")
+                              if expected_str and expected_str in line:
+                                  found_expected = True
+                      except:
+                          pass
+                  
+                  # Read client output
+                  if client_proc.poll() is None:
+                      try:
+                          line = client_proc.stdout.readline()
+                          if line:
+                              line = line.strip()
+                              client_output.append(line)
+                              print(f"[CLIENT] {line}")
+                      except:
+                          pass
+                  else:
+                      # Client finished, read remaining server output
+                      time.sleep(2)
+                      try:
+                          remaining = server_proc.stdout.read()
+                          if remaining:
+                              for line in remaining.split('\n'):
+                                  if line.strip():
+                                      server_output.append(line.strip())
+                                      print(f"[SERVER] {line.strip()}")
+                                      if expected_str and expected_str in line:
+                                          found_expected = True
+                      except:
+                          pass
+                      break
+                  
+                  time.sleep(0.1)
+              
+              # Cleanup
+              print("\nCleaning up processes...")
+              try:
+                  if client_proc.poll() is None:
+                      client_proc.terminate()
+                      client_proc.wait(timeout=5)
+              except:
+                  client_proc.kill()
+              
+              try:
+                  if server_proc.poll() is None:
+                      os.killpg(os.getpgid(server_proc.pid), signal.SIGTERM)
+                      server_proc.wait(timeout=5)
+              except:
+                  try:
+                      os.killpg(os.getpgid(server_proc.pid), signal.SIGKILL)
+                  except:
+                      pass
+              
+              # Check results
+              print("\n" + "="*60)
+              print("TEST RESULTS")
+              print("="*60)
+              
+              if not expected_str:
+                  print("SUCCESS: No expected string, test completed")
+                  return 0
+              
+              if found_expected:
+                  print(f"SUCCESS: Found expected string '{expected_str}'")
+                  return 0
+              else:
+                  print(f"FAILURE: Expected string '{expected_str}' not found in output")
+                  print("\nServer output:")
+                  print('\n'.join(server_output[-20:]))
+                  print("\nClient output:")
+                  print('\n'.join(client_output[-20:]))
+                  return 1
+          
+          if __name__ == "__main__":
+              if len(sys.argv) < 4:
+                  print("Usage: run_gpu_test.py <server_cmd> <client_cmd> <expected_str> [timeout]")
+                  sys.exit(1)
+              
+              server_cmd = sys.argv[1]
+              client_cmd = sys.argv[2]
+              expected_str = sys.argv[3] if sys.argv[3] != "" else None
+              timeout = int(sys.argv[4]) if len(sys.argv) > 4 else 20
+              
+              sys.exit(run_gpu_test(server_cmd, client_cmd, expected_str, timeout))
+          EOF
+          chmod +x /tmp/run_gpu_test.py
+
+      - name: Test GPU example
+        shell: bash
+        run: |
+          cd example/gpu/${{matrix.examples.path}}
+          python3 /tmp/run_gpu_test.py \
+            "${{matrix.examples.executable}}" \
+            "${{matrix.examples.victim}}" \
+            "${{matrix.examples.expected_str}}" \
+            ${{matrix.examples.server_timeout}}
+
+      - name: Generate example coverage
+        run: |
+          lcov --ignore-errors gcov --capture --directory . --output-file coverage-gpu-example.info
+          lcov --ignore-errors gcov --remove coverage-gpu-example.info '/usr/*' --output-file coverage-gpu-example.info
+          lcov --ignore-errors gcov --list coverage-gpu-example.info
+
+      - name: Upload example coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-gpu-example-${{matrix.enable_jit}}-${{matrix.examples.name}}
+          include-hidden-files: false
+          path: |
+            ./coverage-gpu-example.info
+
+      - uses: codecov/codecov-action@v4
+        if: github.repository == 'eunomia-bpf/bpftime' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        with:
+          fail_ci_if_error: false
+          files: ./coverage-gpu-example.info
+          flags: coverage-gpu-example-${{matrix.enable_jit}}-${{matrix.examples.name}}
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
+
