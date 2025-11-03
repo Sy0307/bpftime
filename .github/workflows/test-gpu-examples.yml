@@ -15,133 +15,11 @@ env:
   BPFTIME_VM_NAME: llvm
 
 jobs:
-  build-runtime-gpu:
+  build-and-test-gpu-examples:
     runs-on: [self-hosted, Linux, X64, gpu]
-    strategy:
-      matrix:
-        enable_jit:
-          - true
-          - false
-    steps:
-      - name: Configure proxy for China
-        run: |
-          echo "Setting up proxy for China network..."
-          export http_proxy=http://192.168.15.1:2345
-          export https_proxy=http://192.168.15.1:2345
-          export HTTP_PROXY=http://192.168.15.1:2345
-          export HTTPS_PROXY=http://192.168.15.1:2345
-          export no_proxy=localhost,127.0.0.1,192.168.0.0/16
-          echo "http_proxy=http://192.168.15.1:2345" >> $GITHUB_ENV
-          echo "https_proxy=http://192.168.15.1:2345" >> $GITHUB_ENV
-          echo "HTTP_PROXY=http://192.168.15.1:2345" >> $GITHUB_ENV
-          echo "HTTPS_PROXY=http://192.168.15.1:2345" >> $GITHUB_ENV
-          echo "no_proxy=localhost,127.0.0.1,192.168.0.0/16" >> $GITHUB_ENV
-          git config --add http.proxy http://192.168.15.1:2345
-          git config --add https.proxy http://192.168.15.1:2345
-
-      - uses: actions/checkout@v2
-        with:
-          submodules: recursive
-
-      - name: Check and install required tools
-        run: |
-          echo "Checking installed tools..."
-          sudo apt-get update -y
-          sudo apt-get install -y build-essential llvm-dev llvm-18-dev cmake \
-            libboost-all-dev libzstd-dev pkg-config ninja-build lcov tree
-          
-          # Check CUDA
-          nvcc --version || echo "nvcc not found (CUDA compiler)"
-          echo "CUDA location: $(which nvcc)"
-
-      - name: Build and install runtime with CUDA support (with llvm-jit)
-        if: ${{matrix.enable_jit}}
-        run: |
-          cmake -B build -S . \
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DBPFTIME_LLVM_JIT=1 \
-            -DTEST_LCOV=YES \
-            -DBUILD_BPFTIME_DAEMON=1 \
-            -DBPFTIME_ENABLE_CUDA_ATTACH=ON \
-            -DBPFTIME_CUDA_ROOT="/usr/local/cuda-12.6" \
-            -DLLVM_DIR="/usr/lib/llvm-18/lib/cmake/llvm/" \
-            -DCMAKE_CXX_FLAGS="-DDEFAULT_LOGGER_OUTPUT_PATH='\"console\"'" \
-            -G Ninja
-          cmake --build build --config RelWithDebInfo --target install -j
-
-      - name: Build and install runtime with CUDA support (without llvm-jit)
-        if: ${{!matrix.enable_jit}}
-        run: |
-          cmake -B build -S . \
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DBPFTIME_LLVM_JIT=0 \
-            -DTEST_LCOV=YES \
-            -DBUILD_BPFTIME_DAEMON=1 \
-            -DBPFTIME_ENABLE_CUDA_ATTACH=ON \
-            -DBPFTIME_CUDA_ROOT="/usr/local/cuda-12.6" \
-            -DLLVM_DIR="/usr/lib/llvm-18/lib/cmake/llvm/" \
-            -DCMAKE_CXX_FLAGS="-DDEFAULT_LOGGER_OUTPUT_PATH='\"console\"'" \
-            -G Ninja
-          cmake --build build --config RelWithDebInfo --target install -j
-
-      - name: Build GPU examples
-        run: |
-          echo "Building GPU examples..."
-          
-          # List of GPU examples to build
-          GPU_EXAMPLES="kernelretsnoop threadhist cuda-counter launchlate mem_trace"
-          
-          for example_name in $GPU_EXAMPLES; do
-            if [ -d "example/gpu/$example_name" ] && [ -f "example/gpu/$example_name/Makefile" ]; then
-              echo "Building GPU example: $example_name..."
-              if ! make -C "example/gpu/$example_name" -j; then
-                echo "Warning: Failed to build $example_name, continuing..."
-              fi
-            fi
-          done
-
-      - name: Package gcno files
-        run: |
-          find . -type f -name "*.gcno" | tar --create --gzip --file=gcno_files.tar.gz --files-from=-
-          ls -la
-          pwd
-          tree . || true
-
-      - name: Upload gcno file
-        uses: actions/upload-artifact@v4
-        with:
-          name: gcno-files-gpu-${{matrix.enable_jit && 'jit' || 'no-jit'}}
-          include-hidden-files: true
-          path: |
-            ./gcno_files.tar.gz
-
-      - name: Upload build results (without jit)
-        uses: actions/upload-artifact@v4
-        if: ${{!matrix.enable_jit}}
-        with:
-          name: runtime-package-gpu-no-jit
-          include-hidden-files: true
-          path: |
-            ~/.bpftime
-
-      - name: Upload build results (with jit)
-        uses: actions/upload-artifact@v4
-        if: ${{matrix.enable_jit}}
-        with:
-          name: runtime-package-gpu-jit
-          include-hidden-files: true
-          path: |
-            ~/.bpftime
-
-  test-gpu-examples:
-    runs-on: [self-hosted, Linux, X64, gpu]
-    needs: [build-runtime-gpu]
     strategy:
       fail-fast: false
       matrix:
-        enable_jit:
-          - true
-          - false
         examples:
           - path: kernelretsnoop
             executable: ./kernelretsnoop
@@ -188,54 +66,43 @@ jobs:
           echo "HTTP_PROXY=http://192.168.15.1:2345" >> $GITHUB_ENV
           echo "HTTPS_PROXY=http://192.168.15.1:2345" >> $GITHUB_ENV
           echo "no_proxy=localhost,127.0.0.1,192.168.0.0/16" >> $GITHUB_ENV
+          git config --add http.proxy http://192.168.15.1:2345
+          git config --add https.proxy http://192.168.15.1:2345
 
       - uses: actions/checkout@v2
         with:
           submodules: recursive
 
-      - name: Download prebuilt runtime (with jit)
-        if: ${{matrix.enable_jit}}
-        uses: actions/download-artifact@v4
-        with:
-          name: runtime-package-gpu-jit
-          path: ~/.bpftime
-
-      - name: Download prebuilt runtime (without jit)
-        if: ${{!matrix.enable_jit}}
-        uses: actions/download-artifact@v4
-        with:
-          name: runtime-package-gpu-no-jit
-          path: ~/.bpftime
-
-      - name: Download gcno files
-        uses: actions/download-artifact@v4
-        with:
-          name: gcno-files-gpu-${{matrix.enable_jit && 'jit' || 'no-jit'}}
-          path: .
-
-      - name: Extract gcno files
+      - name: Check and install required tools
         run: |
-          ls -lah .
-          tar -zxvf gcno_files.tar.gz
-          pwd
+          echo "Checking installed tools..."
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential llvm-dev llvm-18-dev cmake \
+            libboost-all-dev libzstd-dev pkg-config ninja-build lcov tree
+          
+          # Check CUDA
+          nvcc --version || echo "nvcc not found (CUDA compiler)"
+          echo "CUDA location: $(which nvcc)"
 
-      - name: Set permissions
+      - name: Build bpftime with CUDA support
+        shell: bash
         run: |
-          chmod +x ~/.bpftime/*
+          cmake -B build -S . \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DBPFTIME_LLVM_JIT=YES \
+            -DTEST_LCOV=YES \
+            -DBUILD_BPFTIME_DAEMON=1 \
+            -DBPFTIME_ENABLE_CUDA_ATTACH=ON \
+            -DBPFTIME_CUDA_ROOT="/usr/local/cuda-12.6" \
+            -DLLVM_DIR="/usr/lib/llvm-18/lib/cmake/llvm/" \
+            -DCMAKE_CXX_FLAGS="-DDEFAULT_LOGGER_OUTPUT_PATH='\"console\"'" \
+            -G Ninja
+          cmake --build build --config RelWithDebInfo --target install -j
 
-      - name: Show downloaded artifacts
-        run: |
-          ls ~/.bpftime
-
-      - name: Build test assets
+      - name: Build GPU example
         run: |
           echo "Building GPU example: ${{matrix.examples.path}}"
           make -C example/gpu/${{matrix.examples.path}} -j
-
-      - name: Set BPFTIME_VM_NAME for ubpf
-        if: "!matrix.enable_jit"
-        run: |
-          echo "BPFTIME_VM_NAME=ubpf" >> $GITHUB_ENV
 
       - name: Create test runner script
         run: |
@@ -257,7 +124,7 @@ jobs:
               server_env = os.environ.copy()
               server_env['BPFTIME_SHM_MEMORY_MB'] = '1000'
               server_env['BPFTIME_LOG_OUTPUT'] = 'console'
-              server_env['LD_PRELOAD'] = '/github/home/.bpftime/libbpftime-syscall-server.so'
+              server_env['LD_PRELOAD'] = os.path.expanduser('~/.bpftime/libbpftime-syscall-server.so')
               
               server_proc = subprocess.Popen(
                   server_cmd,
@@ -276,7 +143,7 @@ jobs:
               # Start client process
               client_env = os.environ.copy()
               client_env['BPFTIME_LOG_OUTPUT'] = 'console'
-              client_env['LD_PRELOAD'] = '/github/home/.bpftime/libbpftime-agent.so'
+              client_env['LD_PRELOAD'] = os.path.expanduser('~/.bpftime/libbpftime-agent.so')
               
               print("Starting client...")
               client_proc = subprocess.Popen(
@@ -408,7 +275,7 @@ jobs:
       - name: Upload example coverage
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-gpu-example-${{matrix.enable_jit}}-${{matrix.examples.name}}
+          name: coverage-gpu-example-${{matrix.examples.name}}
           include-hidden-files: false
           path: |
             ./coverage-gpu-example.info
@@ -418,7 +285,7 @@ jobs:
         with:
           fail_ci_if_error: false
           files: ./coverage-gpu-example.info
-          flags: coverage-gpu-example-${{matrix.enable_jit}}-${{matrix.examples.name}}
+          flags: coverage-gpu-example-${{matrix.examples.name}}
           token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true
 
