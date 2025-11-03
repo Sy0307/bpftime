@@ -78,7 +78,7 @@ jobs:
           echo "Checking installed tools..."
           sudo apt-get update -y
           sudo apt-get install -y build-essential llvm-dev llvm-18-dev cmake \
-            libboost-all-dev libzstd-dev pkg-config ninja-build lcov tree
+            libboost-all-dev libzstd-dev pkg-config ninja-build
           
           # Check CUDA
           nvcc --version || echo "nvcc not found (CUDA compiler)"
@@ -90,14 +90,12 @@ jobs:
           cmake -B build -S . \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DBPFTIME_LLVM_JIT=YES \
-            -DTEST_LCOV=YES \
-            -DBUILD_BPFTIME_DAEMON=1 \
             -DBPFTIME_ENABLE_CUDA_ATTACH=ON \
             -DBPFTIME_CUDA_ROOT="/usr/local/cuda-12.6" \
             -DLLVM_DIR="/usr/lib/llvm-18/lib/cmake/llvm/" \
             -DCMAKE_CXX_FLAGS="-DDEFAULT_LOGGER_OUTPUT_PATH='\"console\"'" \
             -G Ninja
-          cmake --build build --config RelWithDebInfo --target install -j
+          cmake --build build --config RelWithDebInfo --target bpftime-agent bpftime-syscall-server -j
 
       - name: Build GPU example
         run: |
@@ -124,7 +122,9 @@ jobs:
               server_env = os.environ.copy()
               server_env['BPFTIME_SHM_MEMORY_MB'] = '1000'
               server_env['BPFTIME_LOG_OUTPUT'] = 'console'
-              server_env['LD_PRELOAD'] = os.path.expanduser('~/.bpftime/libbpftime-syscall-server.so')
+              # Use build directory instead of installed location
+              build_dir = os.path.abspath(os.path.join(os.getcwd(), '../../../build'))
+              server_env['LD_PRELOAD'] = os.path.join(build_dir, 'runtime/syscall-server/libbpftime-syscall-server.so')
               
               server_proc = subprocess.Popen(
                   server_cmd,
@@ -143,7 +143,9 @@ jobs:
               # Start client process
               client_env = os.environ.copy()
               client_env['BPFTIME_LOG_OUTPUT'] = 'console'
-              client_env['LD_PRELOAD'] = os.path.expanduser('~/.bpftime/libbpftime-agent.so')
+              # Use build directory instead of installed location
+              build_dir = os.path.abspath(os.path.join(os.getcwd(), '../../../build'))
+              client_env['LD_PRELOAD'] = os.path.join(build_dir, 'runtime/agent/libbpftime-agent.so')
               
               print("Starting client...")
               client_proc = subprocess.Popen(
@@ -266,26 +268,4 @@ jobs:
             "${{matrix.examples.expected_str}}" \
             ${{matrix.examples.server_timeout}}
 
-      - name: Generate example coverage
-        run: |
-          lcov --ignore-errors gcov --capture --directory . --output-file coverage-gpu-example.info
-          lcov --ignore-errors gcov --remove coverage-gpu-example.info '/usr/*' --output-file coverage-gpu-example.info
-          lcov --ignore-errors gcov --list coverage-gpu-example.info
-
-      - name: Upload example coverage
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-gpu-example-${{matrix.examples.name}}
-          include-hidden-files: false
-          path: |
-            ./coverage-gpu-example.info
-
-      - uses: codecov/codecov-action@v4
-        if: github.repository == 'eunomia-bpf/bpftime' && github.event_name == 'push' && github.ref == 'refs/heads/main'
-        with:
-          fail_ci_if_error: false
-          files: ./coverage-gpu-example.info
-          flags: coverage-gpu-example-${{matrix.examples.name}}
-          token: ${{ secrets.CODECOV_TOKEN }}
-          verbose: true
 
