@@ -140,7 +140,10 @@ jobs:
           echo "Launching client with $AGENT_SO: $VICTIM"
           BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$AGENT_SO" bash -lc "$VICTIM" > client.log 2>&1 || true
           echo "Checking expected output: $EXPECTED"
-          if grep -Fq "$EXPECTED" server.log client.log; then
+          # treat crashes as failure even if expected string appears
+          if grep -Eiq "(core dumped|Segmentation fault)" server.log client.log; then
+            echo "Detected crash in logs"; tail -n 200 server.log; tail -n 200 client.log; RESULT=1
+          elif grep -Fq "$EXPECTED" server.log client.log; then
             echo "SUCCESS: expected string found"
             RESULT=0
           else
