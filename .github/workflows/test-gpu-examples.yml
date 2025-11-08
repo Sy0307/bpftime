@@ -97,7 +97,15 @@ jobs:
             -DBPFTIME_CUDA_ROOT="/usr/local/cuda-12.6" \
             -DLLVM_DIR="/usr/lib/llvm-18/lib/cmake/llvm/" \
             -G Ninja
+          set +e
           cmake --build build --config Debug --target bpftime-agent bpftime-syscall-server -j$(nproc) --verbose -- -v | tee build_llvm_verbose.log
+          BUILD_RC=${PIPESTATUS[0]}
+          set -e
+          if [ $BUILD_RC -ne 0 ]; then
+            echo "Build failed. Showing last 300 lines of build_llvm_verbose.log:"
+            tail -n 300 build_llvm_verbose.log || true
+            exit $BUILD_RC
+          fi
 
       - name: Build GPU example
         run: |
@@ -116,17 +124,22 @@ jobs:
           BUILD_DIR=$(cd ../../../build && pwd)
           SERVER_SO="$BUILD_DIR/runtime/syscall-server/libbpftime-syscall-server.so"
           AGENT_SO="$BUILD_DIR/runtime/agent/libbpftime-agent.so"
-          echo "Launching server with $SERVER_SO"
-          BPFTIME_SHM_MEMORY_MB=1000 BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$SERVER_SO" \
-            "${{matrix.examples.executable}}" > server.log 2>&1 &
+          EXE="${{ matrix.examples.executable }}"
+          VICTIM="${{ matrix.examples.victim }}"
+          EXPECTED="${{ matrix.examples.expected_str }}"
+          echo "Launching server with $SERVER_SO: $EXE"
+          BPFTIME_SHM_MEMORY_MB=1000 BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$SERVER_SO" "$EXE" > server.log 2>&1 &
           SERVER_PID=$!
           echo "Server PID: $SERVER_PID"
           sleep 3
-          echo "Launching client with $AGENT_SO: ${'${{matrix.examples.victim}}'}"
-          BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$AGENT_SO" \
-            ${'${{matrix.examples.victim}}'} > client.log 2>&1 || true
-          echo "Checking expected output: ${'${{matrix.examples.expected_str}}'}"
-          if grep -Fq "${'${{matrix.examples.expected_str}}'}" server.log client.log; then
+          if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+            echo "Server crashed early. Showing server.log tail:"; tail -n 200 server.log || true
+            exit 1
+          fi
+          echo "Launching client with $AGENT_SO: $VICTIM"
+          BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$AGENT_SO" bash -lc "$VICTIM" > client.log 2>&1 || true
+          echo "Checking expected output: $EXPECTED"
+          if grep -Fq "$EXPECTED" server.log client.log; then
             echo "SUCCESS: expected string found"
             RESULT=0
           else
