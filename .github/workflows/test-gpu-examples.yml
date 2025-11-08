@@ -84,7 +84,7 @@ jobs:
           nvcc --version || echo "nvcc not found (CUDA compiler)"
           echo "CUDA location: $(which nvcc)"
 
-      - name: Build bpftime with CUDA support
+      - name: Build bpftime with CUDA support (LLVM JIT)
         shell: bash
         run: |
           set -e
@@ -95,7 +95,7 @@ jobs:
             -DBPFTIME_CUDA_ROOT="/usr/local/cuda-12.6" \
             -DLLVM_DIR="/usr/lib/llvm-18/lib/cmake/llvm/" \
             -G Ninja
-          cmake --build build --config Debug --target bpftime-agent bpftime-syscall-server -j$(nproc) --verbose -- -v
+          cmake --build build --config Debug --target bpftime-agent bpftime-syscall-server -j$(nproc) --verbose -- -v | tee build_llvm_verbose.log
 
       - name: Build GPU example
         run: |
