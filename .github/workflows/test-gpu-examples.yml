@@ -66,8 +66,8 @@ jobs:
           echo "HTTP_PROXY=http://192.168.15.1:2345" >> $GITHUB_ENV
           echo "HTTPS_PROXY=http://192.168.15.1:2345" >> $GITHUB_ENV
           echo "no_proxy=localhost,127.0.0.1,192.168.0.0/16" >> $GITHUB_ENV
-          git config --add http.proxy http://192.168.15.1:2345
-          git config --add https.proxy http://192.168.15.1:2345
+          git config --global --add http.proxy http://192.168.15.1:2345
+          git config --global --add https.proxy http://192.168.15.1:2345
 
       - uses: actions/checkout@v2
         with:
@@ -87,15 +87,15 @@ jobs:
       - name: Build bpftime with CUDA support
         shell: bash
         run: |
+          set -e
           cmake -B build -S . \
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_BUILD_TYPE=Debug \
             -DBPFTIME_LLVM_JIT=YES \
             -DBPFTIME_ENABLE_CUDA_ATTACH=ON \
             -DBPFTIME_CUDA_ROOT="/usr/local/cuda-12.6" \
             -DLLVM_DIR="/usr/lib/llvm-18/lib/cmake/llvm/" \
-            -DCMAKE_CXX_FLAGS="-DDEFAULT_LOGGER_OUTPUT_PATH='\"console\"'" \
             -G Ninja
-          cmake --build build --config RelWithDebInfo --target bpftime-agent bpftime-syscall-server -j
+          cmake --build build --config Debug --target bpftime-agent bpftime-syscall-server -j$(nproc) --verbose -- -v
 
       - name: Build GPU example
         run: |
