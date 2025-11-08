@@ -79,7 +79,8 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y build-essential llvm-dev llvm-18-dev cmake \
             libboost-all-dev libzstd-dev pkg-config ninja-build \
-            libelf-dev zlib1g-dev libcurl4-openssl-dev
+            libelf-dev zlib1g-dev libcurl4-openssl-dev \
+            clang clang-18
           
           # Check CUDA
           nvcc --version || echo "nvcc not found (CUDA compiler)"
@@ -101,6 +102,10 @@ jobs:
       - name: Build GPU example
         run: |
           echo "Building GPU example: ${{matrix.examples.path}}"
+          # Prefer system clang; fallback to clang-18 if needed
+          if ! command -v clang >/dev/null 2>&1 && command -v clang-18 >/dev/null 2>&1; then
+            export CLANG=clang-18
+          fi
           make -C example/gpu/${{matrix.examples.path}} -j
 
       - name: Create test runner script
