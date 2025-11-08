@@ -90,11 +90,13 @@ void fatbin_record::try_loading_ptxs(class nv_attach_impl &impl)
 		CUjit_option options[] = { CU_JIT_INFO_LOG_BUFFER,
 					   CU_JIT_INFO_LOG_BUFFER_SIZE_BYTES,
 					   CU_JIT_ERROR_LOG_BUFFER,
-					   CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES };
+					   CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES,
+					   CU_JIT_TARGET_FROM_CUCONTEXT };
 		void *option_values[] = { (void *)info_buf,
 					  (void *)std::size(info_buf),
 					  (void *)error_buf,
-					  (void *)std::size(error_buf) };
+					  (void *)std::size(error_buf),
+					  nullptr };
 		if (auto err = cuModuleLoadDataEx(&module, ptx.data(),
 						  std::size(options), options,
 						  option_values);
