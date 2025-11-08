@@ -108,170 +108,34 @@ jobs:
           fi
           make -C example/gpu/${{matrix.examples.path}} -j
 
-      - name: Create test runner script
-        run: |
-          cat > /tmp/run_gpu_test.py << 'EOF'
-          #!/usr/bin/env python3
-          import subprocess
-          import time
-          import sys
-          import os
-          import signal
-          
-          def run_gpu_test(server_cmd, client_cmd, expected_str, timeout):
-              """Run GPU eBPF test with server and client processes"""
-              print(f"Starting server: {server_cmd}")
-              print(f"Will run client: {client_cmd}")
-              print(f"Expected output: {expected_str}")
-              
-              # Start server process
-              server_env = os.environ.copy()
-              server_env['BPFTIME_SHM_MEMORY_MB'] = '1000'
-              server_env['BPFTIME_LOG_OUTPUT'] = 'console'
-              # Use build directory instead of installed location
-              build_dir = os.path.abspath(os.path.join(os.getcwd(), '../../../build'))
-              server_env['LD_PRELOAD'] = os.path.join(build_dir, 'runtime/syscall-server/libbpftime-syscall-server.so')
-              
-              server_proc = subprocess.Popen(
-                  server_cmd,
-                  shell=True,
-                  env=server_env,
-                  stdout=subprocess.PIPE,
-                  stderr=subprocess.STDOUT,
-                  text=True,
-                  preexec_fn=os.setsid
-              )
-              
-              # Wait for server to be ready
-              print("Waiting for server to initialize...")
-              time.sleep(3)
-              
-              # Start client process
-              client_env = os.environ.copy()
-              client_env['BPFTIME_LOG_OUTPUT'] = 'console'
-              # Use build directory instead of installed location
-              build_dir = os.path.abspath(os.path.join(os.getcwd(), '../../../build'))
-              client_env['LD_PRELOAD'] = os.path.join(build_dir, 'runtime/agent/libbpftime-agent.so')
-              
-              print("Starting client...")
-              client_proc = subprocess.Popen(
-                  client_cmd,
-                  shell=True,
-                  env=client_env,
-                  stdout=subprocess.PIPE,
-                  stderr=subprocess.STDOUT,
-                  text=True
-              )
-              
-              # Collect output from both processes
-              server_output = []
-              client_output = []
-              found_expected = False
-              start_time = time.time()
-              
-              while time.time() - start_time < timeout:
-                  # Read server output
-                  if server_proc.poll() is None:
-                      try:
-                          line = server_proc.stdout.readline()
-                          if line:
-                              line = line.strip()
-                              server_output.append(line)
-                              print(f"[SERVER] {line}")
-                              if expected_str and expected_str in line:
-                                  found_expected = True
-                      except:
-                          pass
-                  
-                  # Read client output
-                  if client_proc.poll() is None:
-                      try:
-                          line = client_proc.stdout.readline()
-                          if line:
-                              line = line.strip()
-                              client_output.append(line)
-                              print(f"[CLIENT] {line}")
-                      except:
-                          pass
-                  else:
-                      # Client finished, read remaining server output
-                      time.sleep(2)
-                      try:
-                          remaining = server_proc.stdout.read()
-                          if remaining:
-                              for line in remaining.split('\n'):
-                                  if line.strip():
-                                      server_output.append(line.strip())
-                                      print(f"[SERVER] {line.strip()}")
-                                      if expected_str and expected_str in line:
-                                          found_expected = True
-                      except:
-                          pass
-                      break
-                  
-                  time.sleep(0.1)
-              
-              # Cleanup
-              print("\nCleaning up processes...")
-              try:
-                  if client_proc.poll() is None:
-                      client_proc.terminate()
-                      client_proc.wait(timeout=5)
-              except:
-                  client_proc.kill()
-              
-              try:
-                  if server_proc.poll() is None:
-                      os.killpg(os.getpgid(server_proc.pid), signal.SIGTERM)
-                      server_proc.wait(timeout=5)
-              except:
-                  try:
-                      os.killpg(os.getpgid(server_proc.pid), signal.SIGKILL)
-                  except:
-                      pass
-              
-              # Check results
-              print("\n" + "="*60)
-              print("TEST RESULTS")
-              print("="*60)
-              
-              if not expected_str:
-                  print("SUCCESS: No expected string, test completed")
-                  return 0
-              
-              if found_expected:
-                  print(f"SUCCESS: Found expected string '{expected_str}'")
-                  return 0
-              else:
-                  print(f"FAILURE: Expected string '{expected_str}' not found in output")
-                  print("\nServer output:")
-                  print('\n'.join(server_output[-20:]))
-                  print("\nClient output:")
-                  print('\n'.join(client_output[-20:]))
-                  return 1
-          
-          if __name__ == "__main__":
-              if len(sys.argv) < 4:
-                  print("Usage: run_gpu_test.py <server_cmd> <client_cmd> <expected_str> [timeout]")
-                  sys.exit(1)
-              
-              server_cmd = sys.argv[1]
-              client_cmd = sys.argv[2]
-              expected_str = sys.argv[3] if sys.argv[3] != "" else None
-              timeout = int(sys.argv[4]) if len(sys.argv) > 4 else 20
-              
-              sys.exit(run_gpu_test(server_cmd, client_cmd, expected_str, timeout))
-          EOF
-          chmod +x /tmp/run_gpu_test.py
-
-      - name: Test GPU example
+      - name: Test GPU example (per README two-process)
         shell: bash
         run: |
+          set -e
           cd example/gpu/${{matrix.examples.path}}
-          python3 /tmp/run_gpu_test.py \
-            "${{matrix.examples.executable}}" \
-            "${{matrix.examples.victim}}" \
-            "${{matrix.examples.expected_str}}" \
-            ${{matrix.examples.server_timeout}}
+          BUILD_DIR=$(cd ../../../build && pwd)
+          SERVER_SO="$BUILD_DIR/runtime/syscall-server/libbpftime-syscall-server.so"
+          AGENT_SO="$BUILD_DIR/runtime/agent/libbpftime-agent.so"
+          echo "Launching server with $SERVER_SO"
+          BPFTIME_SHM_MEMORY_MB=1000 BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$SERVER_SO" \
+            "${{matrix.examples.executable}}" > server.log 2>&1 &
+          SERVER_PID=$!
+          echo "Server PID: $SERVER_PID"
+          sleep 3
+          echo "Launching client with $AGENT_SO: ${'${{matrix.examples.victim}}'}"
+          BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$AGENT_SO" \
+            ${'${{matrix.examples.victim}}'} > client.log 2>&1 || true
+          echo "Checking expected output: ${'${{matrix.examples.expected_str}}'}"
+          if grep -Fq "${'${{matrix.examples.expected_str}}'}" server.log client.log; then
+            echo "SUCCESS: expected string found"
+            RESULT=0
+          else
+            echo "FAILURE: expected string not found"
+            echo "--- server.log (tail) ---"; tail -n 200 server.log || true
+            echo "--- client.log (tail) ---"; tail -n 200 client.log || true
+            RESULT=1
+          fi
+          kill $SERVER_PID 2>/dev/null || true
+          exit $RESULT
 
 
