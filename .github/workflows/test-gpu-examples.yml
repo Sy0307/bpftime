@@ -127,8 +127,8 @@ jobs:
           EXE="${{ matrix.examples.executable }}"
           VICTIM="${{ matrix.examples.victim }}"
           EXPECTED="${{ matrix.examples.expected_str }}"
-          echo "Launching server with $SERVER_SO: $EXE"
-          BPFTIME_SHM_MEMORY_MB=1000 BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$SERVER_SO" "$EXE" > server.log 2>&1 &
+          echo "Launching server with $SERVER_SO: $EXE (BPFTIME_SHM_MEMORY_MB=16)"
+          BPFTIME_SHM_MEMORY_MB=16 BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$SERVER_SO" "$EXE" > server.log 2>&1 &
           SERVER_PID=$!
           echo "Server PID: $SERVER_PID"
           sleep 3
