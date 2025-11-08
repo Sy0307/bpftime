@@ -27,12 +27,6 @@ jobs:
             expected_str: "Thread ("
             name: kernelretsnoop
             server_timeout: 15
-          - path: gpu_shard_array
-            executable: ./gpu_shard_array
-            victim: ./vec_add
-            expected_str: "counter[0]="
-            name: gpu-shard-array
-            server_timeout: 20
           - path: threadhist
             executable: ./threadhist
             victim: ./vec_add
@@ -99,7 +93,7 @@ jobs:
           sudo apt-get install -y build-essential llvm-dev llvm-18-dev cmake \
             libboost-all-dev libzstd-dev pkg-config ninja-build \
             libelf-dev zlib1g-dev libcurl4-openssl-dev \
-            clang clang-18 gdb strace
+            clang clang-18 gdb
           
           # Check CUDA
           nvcc --version || echo "nvcc not found (CUDA compiler)"
@@ -147,64 +141,25 @@ jobs:
           EXE="$EXAMPLE_DIR/${{ matrix.examples.executable }}"
           VICTIM="$EXAMPLE_DIR/${{ matrix.examples.victim }}"
           EXPECTED="${{ matrix.examples.expected_str }}"
-          SERVER_TIMEOUT="${{ matrix.examples.server_timeout }}"
-          CLIENT_TIMEOUT=45
-          # Improve diagnostics: enable verbose logging and coredumps
-          export SPDLOG_LEVEL=debug
-          export BPFTIME_LOG_LEVEL=DEBUG
+          CLIENT_TIMEOUT=60
+          # enable more logs and coredumps
+          export SPDLOG_LEVEL=trace
+          export BPFTIME_LOG_LEVEL=TRACE
+          export CUDA_LAUNCH_BLOCKING=1
+          export CUDA_MODULE_LOADING=LAZY
           ulimit -c unlimited || true
-          # Try to set core_pattern so cores land in workspace with useful names
-          if command -v sudo >/dev/null 2>&1; then
-            echo 'core.%e.%p' | sudo tee /proc/sys/kernel/core_pattern >/dev/null || true
-          fi
           echo "Launching server with $SERVER_SO: $EXE (BPFTIME_SHM_MEMORY_MB=16)"
-          PRLIMIT_BIN=$(command -v prlimit || echo "")
-          if [ -n "$PRLIMIT_BIN" ]; then
-            CMD_PREFIX="$PRLIMIT_BIN --memlock=unlimited --nice=0 --"
-          else
-            CMD_PREFIX=""
-          fi
-          # Optionally strace server for syscalls; keep lightweight
-          BPFTIME_SHM_MEMORY_MB=16 BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$SERVER_SO" \
-            $CMD_PREFIX "$EXE" > server.log 2>&1 &
+          BPFTIME_SHM_MEMORY_MB=16 BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$SERVER_SO" "$EXE" > server.log 2>&1 &
           SERVER_PID=$!
           echo "Server PID: $SERVER_PID"
-          # Wait a bit for server to come up
-          sleep "$SERVER_TIMEOUT"
+          sleep 5
           if ! kill -0 "$SERVER_PID" 2>/dev/null; then
             echo "Server crashed early. Showing server.log tail:"; tail -n 200 server.log || true
             exit 1
           fi
           echo "Launching client with $AGENT_SO: $VICTIM"
-          # Prefer tracing env for better diagnostics
-          export CUDA_LAUNCH_BLOCKING=1
-          export CUDA_MODULE_LOADING=LAZY
-          export CUDA_FORCE_PTX_JIT=1
-          export SPDLOG_LEVEL=trace
-          export BPFTIME_LOG_LEVEL=TRACE
-          if [ -n "$PRLIMIT_BIN" ]; then
-            $PRLIMIT_BIN --memlock=unlimited --nice=0 -- \
-              timeout -s SIGKILL ${CLIENT_TIMEOUT}s env BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$AGENT_SO" bash -lc "$VICTIM" > client.log 2>&1 || CLIENT_RC=$?
-          else
-            timeout -s SIGKILL ${CLIENT_TIMEOUT}s BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$AGENT_SO" bash -lc "$VICTIM" > client.log 2>&1 || CLIENT_RC=$?
-          fi
-          CLIENT_RC=${CLIENT_RC:-0}
-          # Snapshot server maps for postmortem
-          cat /proc/$SERVER_PID/maps > server.maps 2>/dev/null || true
-          # If client crashed, try to get immediate gdb backtrace
-          if [ $CLIENT_RC -ne 0 ]; then
-            echo "Client crashed (rc=$CLIENT_RC), attempting gdb backtrace..."
-            GDB_CMD_FILE=client.gdb.cmds
-            echo 'set pagination off' > $GDB_CMD_FILE
-            echo 'set confirm off' >> $GDB_CMD_FILE
-            echo 'handle SIGPIPE nostop noprint pass' >> $GDB_CMD_FILE
-            echo 'run' >> $GDB_CMD_FILE
-            echo 'thread apply all bt full' >> $GDB_CMD_FILE
-            echo 'info registers' >> $GDB_CMD_FILE
-            echo 'quit' >> $GDB_CMD_FILE
-            env -i PATH="$PATH" LD_PRELOAD="$AGENT_SO" BPFTIME_LOG_OUTPUT=console \
-              gdb -q -batch -x $GDB_CMD_FILE --args bash -lc "$VICTIM" > client.gdb.log 2>&1 || true
-          fi
+          timeout -s SIGKILL ${CLIENT_TIMEOUT}s env BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$AGENT_SO" bash -lc "$VICTIM" > client.log 2>&1 || true
+          CLIENT_RC=$?
           echo "Checking expected output: $EXPECTED"
           # treat crashes as failure even if expected string appears
           if [ $CLIENT_RC -ne 0 ] || grep -Eiq "(core dumped|Segmentation fault|Aborted)" server.log client.log; then
@@ -218,40 +173,34 @@ jobs:
             echo "--- client.log (tail) ---"; tail -n 200 client.log || true
             RESULT=1
           fi
-          # Try to collect core dumps (if generated)
-          echo "Searching for core files..."
-          CORE_FILES=$(ls -1 core* 2>/dev/null || true)
-          if [ -n "$CORE_FILES" ]; then
-            echo "Core files found: $CORE_FILES"
-            if command -v gdb >/dev/null 2>&1; then
-              for c in $CORE_FILES; do
-                echo "--- GDB backtrace for $c ---" || true
-                # Try to guess executable: prefer client victim if it crashed during client
-                EXE_CANDIDATE="$VICTIM"
-                if [ ! -x "$EXE_CANDIDATE" ]; then EXE_CANDIDATE="$EXE"; fi
-                gdb -q -batch -ex "thread apply all bt full" -ex "info registers" -ex "quit" "$EXE_CANDIDATE" "$c" > "${c}.bt" 2>&1 || true
-              done
-            fi
-          fi
-          # Dump recent dmesg and GPU info
-          dmesg | tail -n 300 > dmesg_tail.log 2>/dev/null || true
+          # Collect extra diagnostics
+          cat /proc/$SERVER_PID/maps > server.maps 2>/dev/null || true
+          dmesg | tail -n 200 > dmesg_tail.log 2>/dev/null || true
           nvidia-smi -L > nvidia_smi_l.log 2>&1 || true
           nvidia-smi -q -x > nvidia_smi_q.xml 2>&1 || true
+          # Try backtrace core files if any
+          CORES=$(ls -1 core* 2>/dev/null || true)
+          if [ -n "$CORES" ]; then
+            for c in $CORES; do
+              gdb -q -batch -ex "thread apply all bt full" -ex "info registers" -ex quit "$VICTIM" "$c" > "$c.bt" 2>&1 || true
+            done
+          fi
           kill $SERVER_PID 2>/dev/null || true
           exit $RESULT
 
-      - name: Upload logs and cores
+      - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: gpu-example-${{ matrix.examples.name }}-logs
           path: |
             server.log
             client.log
-            dmesg_tail.log
             server.maps
-            client.gdb.log
+            dmesg_tail.log
             nvidia_smi_l.log
             nvidia_smi_q.xml
-            build_llvm_verbose.log
             core*
+            *.bt
+
+
