@@ -27,6 +27,12 @@ jobs:
             expected_str: "Thread ("
             name: kernelretsnoop
             server_timeout: 15
+          - path: gpu_shard_array
+            executable: ./gpu_shard_array
+            victim: ./vec_add
+            expected_str: "counter[0]="
+            name: gpu-shard-array
+            server_timeout: 20
           - path: threadhist
             executable: ./threadhist
             victim: ./vec_add
@@ -73,13 +79,23 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Set GPU SM to sm_61 for NVPTX (CI-only)
+      - name: System and GPU info
+        run: |
+          set -xeuo pipefail
+          uname -a
+          nvidia-smi -L || true
+          nvidia-smi || true
+          which nvcc || true
+          nvcc --version || true
+          ldconfig -p | grep -i cuda || true
+
+      - name: Detect GPU SM and set NVPTX target (CI-only)
         run: |
           set -e
-          SM=61
-          echo "Using fixed SM=sm_${SM} for NVPTXCompiler"
+          SM=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -n1 | tr -d '.' || true)
+          if [ -z "$SM" ]; then SM=52; fi
+          echo "Using SM=sm_${SM} for NVPTXCompiler and trampoline/pass"
           sed -i -E "s/--gpu-name=sm_[0-9]{2}/--gpu-name=sm_${SM}/g" attach/nv_attach_impl/nv_attach_fatbin_record.cpp || true
-          # Also unify trampoline/other hardcoded sm_60 -> sm_61 (no repo commit; CI-only)
           sed -i -E "s/sm_60/sm_${SM}/g" attach/nv_attach_impl/trampoline_ptx.h || true
           sed -i -E "s/sm_60/sm_${SM}/g" attach/nv_attach_impl/nv_attach_impl.cpp || true
           sed -i -E "s/sm_60/sm_${SM}/g" attach/nv_attach_impl/pass/ptxpass_kprobe_entry/main.cpp || true
@@ -93,7 +109,7 @@ jobs:
           sudo apt-get install -y build-essential llvm-dev llvm-18-dev cmake \
             libboost-all-dev libzstd-dev pkg-config ninja-build \
             libelf-dev zlib1g-dev libcurl4-openssl-dev \
-            clang clang-18
+            clang clang-18 gdb
           
           # Check CUDA
           nvcc --version || echo "nvcc not found (CUDA compiler)"
@@ -132,7 +148,7 @@ jobs:
       - name: Test GPU example (per README two-process)
         shell: bash
         run: |
-          set -e
+          set -xeuo pipefail
           ROOT_DIR=$(pwd)
           EXAMPLE_DIR="$ROOT_DIR/example/gpu/${{matrix.examples.path}}"
           BUILD_DIR="$ROOT_DIR/build"
@@ -141,22 +157,45 @@ jobs:
           EXE="$EXAMPLE_DIR/${{ matrix.examples.executable }}"
           VICTIM="$EXAMPLE_DIR/${{ matrix.examples.victim }}"
           EXPECTED="${{ matrix.examples.expected_str }}"
+          SERVER_TIMEOUT="${{ matrix.examples.server_timeout }}"
+          CLIENT_TIMEOUT=45
+          # Improve diagnostics: enable verbose logging and coredumps
+          export SPDLOG_LEVEL=debug
+          export BPFTIME_LOG_LEVEL=DEBUG
+          ulimit -c unlimited || true
+          # Try to set core_pattern so cores land in workspace with useful names
+          if command -v sudo >/dev/null 2>&1; then
+            echo 'core.%e.%p' | sudo tee /proc/sys/kernel/core_pattern >/dev/null || true
+          fi
           echo "Launching server with $SERVER_SO: $EXE (BPFTIME_SHM_MEMORY_MB=16)"
-          BPFTIME_SHM_MEMORY_MB=16 BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$SERVER_SO" "$EXE" > server.log 2>&1 &
+          PRLIMIT_BIN=$(command -v prlimit || echo "")
+          if [ -n "$PRLIMIT_BIN" ]; then
+            CMD_PREFIX="$PRLIMIT_BIN --memlock=unlimited --nice=0 --"
+          else
+            CMD_PREFIX=""
+          fi
+          BPFTIME_SHM_MEMORY_MB=16 BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$SERVER_SO" \
+            $CMD_PREFIX "$EXE" > server.log 2>&1 &
           SERVER_PID=$!
           echo "Server PID: $SERVER_PID"
-          sleep 3
+          # Wait a bit for server to come up
+          sleep "$SERVER_TIMEOUT"
           if ! kill -0 "$SERVER_PID" 2>/dev/null; then
             echo "Server crashed early. Showing server.log tail:"; tail -n 200 server.log || true
             exit 1
           fi
           echo "Launching client with $AGENT_SO: $VICTIM"
-          BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$AGENT_SO" bash -lc "$VICTIM" > client.log 2>&1
-          CLIENT_RC=$?
+          if [ -n "$PRLIMIT_BIN" ]; then
+            $PRLIMIT_BIN --memlock=unlimited --nice=0 -- \
+              timeout -s SIGKILL ${CLIENT_TIMEOUT}s env BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$AGENT_SO" bash -lc "$VICTIM" > client.log 2>&1 || CLIENT_RC=$?
+          else
+            timeout -s SIGKILL ${CLIENT_TIMEOUT}s BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$AGENT_SO" bash -lc "$VICTIM" > client.log 2>&1 || CLIENT_RC=$?
+          fi
+          CLIENT_RC=${CLIENT_RC:-0}
           echo "Checking expected output: $EXPECTED"
           # treat crashes as failure even if expected string appears
-          if [ $CLIENT_RC -ne 0 ] || grep -Eiq "(core dumped|Segmentation fault)" server.log client.log; then
-            echo "Detected crash in logs"; tail -n 200 server.log; tail -n 200 client.log; RESULT=1
+          if [ $CLIENT_RC -ne 0 ] || grep -Eiq "(core dumped|Segmentation fault|Aborted)" server.log client.log; then
+            echo "Detected crash in logs"; tail -n 200 server.log || true; tail -n 200 client.log || true; RESULT=1
           elif grep -Fq "$EXPECTED" server.log client.log; then
             echo "SUCCESS: expected string found"
             RESULT=0
@@ -166,7 +205,34 @@ jobs:
             echo "--- client.log (tail) ---"; tail -n 200 client.log || true
             RESULT=1
           fi
+          # Try to collect core dumps (if generated)
+          echo "Searching for core files..."
+          CORE_FILES=$(ls -1 core* 2>/dev/null || true)
+          if [ -n "$CORE_FILES" ]; then
+            echo "Core files found: $CORE_FILES"
+            if command -v gdb >/dev/null 2>&1; then
+              for c in $CORE_FILES; do
+                echo "--- GDB backtrace for $c ---" || true
+                # Try to guess executable: prefer client victim if it crashed during client
+                EXE_CANDIDATE="$VICTIM"
+                if [ ! -x "$EXE_CANDIDATE" ]; then EXE_CANDIDATE="$EXE"; fi
+                gdb -q -batch -ex "thread apply all bt full" -ex "quit" "$EXE_CANDIDATE" "$c" || true
+              done
+            fi
+          fi
+          # Dump recent dmesg for BPF/gpu hints
+          dmesg | tail -n 200 > dmesg_tail.log 2>/dev/null || true
           kill $SERVER_PID 2>/dev/null || true
           exit $RESULT
 
-
+      - name: Upload logs and cores
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: gpu-example-${{ matrix.examples.name }}-logs
+          path: |
+            server.log
+            client.log
+            dmesg_tail.log
+            build_llvm_verbose.log
+            core*
