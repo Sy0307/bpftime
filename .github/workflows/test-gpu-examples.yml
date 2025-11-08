@@ -73,13 +73,18 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Detect GPU SM and set NVPTX target (CI-only)
+      - name: Set GPU SM to sm_61 for NVPTX (CI-only)
         run: |
           set -e
-          SM=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -n1 | tr -d '.' || true)
-          if [ -z "$SM" ]; then SM=52; fi
-          echo "Using SM=sm_${SM} for NVPTXCompiler"
+          SM=61
+          echo "Using fixed SM=sm_${SM} for NVPTXCompiler"
           sed -i -E "s/--gpu-name=sm_[0-9]{2}/--gpu-name=sm_${SM}/g" attach/nv_attach_impl/nv_attach_fatbin_record.cpp || true
+          # Also unify trampoline/other hardcoded sm_60 -> sm_61 (no repo commit; CI-only)
+          sed -i -E "s/sm_60/sm_${SM}/g" attach/nv_attach_impl/trampoline_ptx.h || true
+          sed -i -E "s/sm_60/sm_${SM}/g" attach/nv_attach_impl/nv_attach_impl.cpp || true
+          sed -i -E "s/sm_60/sm_${SM}/g" attach/nv_attach_impl/pass/ptxpass_kprobe_entry/main.cpp || true
+          sed -i -E "s/sm_60/sm_${SM}/g" attach/nv_attach_impl/pass/ptxpass_kretprobe/main.cpp || true
+          sed -i -E "s/sm_60/sm_${SM}/g" attach/nv_attach_impl/pass/ptxpass_kprobe_memcapture/main.cpp || true
 
       - name: Check and install required tools
         run: |
@@ -146,10 +151,11 @@ jobs:
             exit 1
           fi
           echo "Launching client with $AGENT_SO: $VICTIM"
-          BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$AGENT_SO" bash -lc "$VICTIM" > client.log 2>&1 || true
+          BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$AGENT_SO" bash -lc "$VICTIM" > client.log 2>&1
+          CLIENT_RC=$?
           echo "Checking expected output: $EXPECTED"
           # treat crashes as failure even if expected string appears
-          if grep -Eiq "(core dumped|Segmentation fault)" server.log client.log; then
+          if [ $CLIENT_RC -ne 0 ] || grep -Eiq "(core dumped|Segmentation fault)" server.log client.log; then
             echo "Detected crash in logs"; tail -n 200 server.log; tail -n 200 client.log; RESULT=1
           elif grep -Fq "$EXPECTED" server.log client.log; then
             echo "SUCCESS: expected string found"
