@@ -87,16 +87,17 @@ void fatbin_record::try_loading_ptxs(class nv_attach_impl &impl)
 		CUmodule module;
 		SPDLOG_INFO("Loading module: {}", name);
 		char error_buf[8192], info_buf[8192];
+		unsigned int target_val = (unsigned int)CU_TARGET_COMPUTE_61; // 默认 sm_61
 		CUjit_option options[] = { CU_JIT_INFO_LOG_BUFFER,
 					   CU_JIT_INFO_LOG_BUFFER_SIZE_BYTES,
 					   CU_JIT_ERROR_LOG_BUFFER,
 					   CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES,
-					   CU_JIT_TARGET_FROM_CUCONTEXT };
+					   CU_JIT_TARGET };
 		void *option_values[] = { (void *)info_buf,
 					  (void *)std::size(info_buf),
 					  (void *)error_buf,
 					  (void *)std::size(error_buf),
-					  nullptr };
+					  (void *)&target_val };
 		if (auto err = cuModuleLoadDataEx(&module, ptx.data(),
 						  std::size(options), options,
 						  option_values);
