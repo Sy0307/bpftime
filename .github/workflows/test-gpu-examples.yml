@@ -79,16 +79,6 @@ jobs:
         with:
           submodules: recursive
 
-      - name: System and GPU info
-        run: |
-          set -xeuo pipefail
-          uname -a
-          nvidia-smi -L || true
-          nvidia-smi || true
-          which nvcc || true
-          nvcc --version || true
-          ldconfig -p | grep -i cuda || true
-
       - name: Detect GPU SM and set NVPTX target (CI-only)
         run: |
           set -e
@@ -109,7 +99,7 @@ jobs:
           sudo apt-get install -y build-essential llvm-dev llvm-18-dev cmake \
             libboost-all-dev libzstd-dev pkg-config ninja-build \
             libelf-dev zlib1g-dev libcurl4-openssl-dev \
-            clang clang-18 gdb
+            clang clang-18 gdb strace
           
           # Check CUDA
           nvcc --version || echo "nvcc not found (CUDA compiler)"
@@ -174,6 +164,7 @@ jobs:
           else
             CMD_PREFIX=""
           fi
+          # Optionally strace server for syscalls; keep lightweight
           BPFTIME_SHM_MEMORY_MB=16 BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$SERVER_SO" \
             $CMD_PREFIX "$EXE" > server.log 2>&1 &
           SERVER_PID=$!
@@ -185,6 +176,12 @@ jobs:
             exit 1
           fi
           echo "Launching client with $AGENT_SO: $VICTIM"
+          # Prefer tracing env for better diagnostics
+          export CUDA_LAUNCH_BLOCKING=1
+          export CUDA_MODULE_LOADING=LAZY
+          export CUDA_FORCE_PTX_JIT=1
+          export SPDLOG_LEVEL=trace
+          export BPFTIME_LOG_LEVEL=TRACE
           if [ -n "$PRLIMIT_BIN" ]; then
             $PRLIMIT_BIN --memlock=unlimited --nice=0 -- \
               timeout -s SIGKILL ${CLIENT_TIMEOUT}s env BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$AGENT_SO" bash -lc "$VICTIM" > client.log 2>&1 || CLIENT_RC=$?
@@ -192,6 +189,22 @@ jobs:
             timeout -s SIGKILL ${CLIENT_TIMEOUT}s BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$AGENT_SO" bash -lc "$VICTIM" > client.log 2>&1 || CLIENT_RC=$?
           fi
           CLIENT_RC=${CLIENT_RC:-0}
+          # Snapshot server maps for postmortem
+          cat /proc/$SERVER_PID/maps > server.maps 2>/dev/null || true
+          # If client crashed, try to get immediate gdb backtrace
+          if [ $CLIENT_RC -ne 0 ]; then
+            echo "Client crashed (rc=$CLIENT_RC), attempting gdb backtrace..."
+            GDB_CMD_FILE=client.gdb.cmds
+            echo 'set pagination off' > $GDB_CMD_FILE
+            echo 'set confirm off' >> $GDB_CMD_FILE
+            echo 'handle SIGPIPE nostop noprint pass' >> $GDB_CMD_FILE
+            echo 'run' >> $GDB_CMD_FILE
+            echo 'thread apply all bt full' >> $GDB_CMD_FILE
+            echo 'info registers' >> $GDB_CMD_FILE
+            echo 'quit' >> $GDB_CMD_FILE
+            env -i PATH="$PATH" LD_PRELOAD="$AGENT_SO" BPFTIME_LOG_OUTPUT=console \
+              gdb -q -batch -x $GDB_CMD_FILE --args bash -lc "$VICTIM" > client.gdb.log 2>&1 || true
+          fi
           echo "Checking expected output: $EXPECTED"
           # treat crashes as failure even if expected string appears
           if [ $CLIENT_RC -ne 0 ] || grep -Eiq "(core dumped|Segmentation fault|Aborted)" server.log client.log; then
@@ -216,12 +229,14 @@ jobs:
                 # Try to guess executable: prefer client victim if it crashed during client
                 EXE_CANDIDATE="$VICTIM"
                 if [ ! -x "$EXE_CANDIDATE" ]; then EXE_CANDIDATE="$EXE"; fi
-                gdb -q -batch -ex "thread apply all bt full" -ex "quit" "$EXE_CANDIDATE" "$c" || true
+                gdb -q -batch -ex "thread apply all bt full" -ex "info registers" -ex "quit" "$EXE_CANDIDATE" "$c" > "${c}.bt" 2>&1 || true
               done
             fi
           fi
-          # Dump recent dmesg for BPF/gpu hints
-          dmesg | tail -n 200 > dmesg_tail.log 2>/dev/null || true
+          # Dump recent dmesg and GPU info
+          dmesg | tail -n 300 > dmesg_tail.log 2>/dev/null || true
+          nvidia-smi -L > nvidia_smi_l.log 2>&1 || true
+          nvidia-smi -q -x > nvidia_smi_q.xml 2>&1 || true
           kill $SERVER_PID 2>/dev/null || true
           exit $RESULT
 
@@ -234,5 +249,9 @@ jobs:
             server.log
             client.log
             dmesg_tail.log
+            server.maps
+            client.gdb.log
+            nvidia_smi_l.log
+            nvidia_smi_q.xml
             build_llvm_verbose.log
             core*
