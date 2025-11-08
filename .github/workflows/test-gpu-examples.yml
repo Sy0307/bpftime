@@ -98,7 +98,7 @@ jobs:
             -DLLVM_DIR="/usr/lib/llvm-18/lib/cmake/llvm/" \
             -G Ninja
           set +e
-          cmake --build build --config Debug --target bpftime-agent bpftime-syscall-server -j$(nproc) --verbose -- -v | tee build_llvm_verbose.log
+          cmake --build build --config Debug --target bpftime-agent bpftime-syscall-server ptxpass_kprobe_entry ptxpass_kretprobe ptxpass_kprobe_memcapture -j$(nproc) --verbose -- -v | tee build_llvm_verbose.log
           BUILD_RC=${PIPESTATUS[0]}
           set -e
           if [ $BUILD_RC -ne 0 ]; then
@@ -120,12 +120,13 @@ jobs:
         shell: bash
         run: |
           set -e
-          cd example/gpu/${{matrix.examples.path}}
-          BUILD_DIR=$(cd ../../../build && pwd)
+          ROOT_DIR=$(pwd)
+          EXAMPLE_DIR="$ROOT_DIR/example/gpu/${{matrix.examples.path}}"
+          BUILD_DIR="$ROOT_DIR/build"
           SERVER_SO="$BUILD_DIR/runtime/syscall-server/libbpftime-syscall-server.so"
           AGENT_SO="$BUILD_DIR/runtime/agent/libbpftime-agent.so"
-          EXE="${{ matrix.examples.executable }}"
-          VICTIM="${{ matrix.examples.victim }}"
+          EXE="$EXAMPLE_DIR/${{ matrix.examples.executable }}"
+          VICTIM="$EXAMPLE_DIR/${{ matrix.examples.victim }}"
           EXPECTED="${{ matrix.examples.expected_str }}"
           echo "Launching server with $SERVER_SO: $EXE (BPFTIME_SHM_MEMORY_MB=16)"
           BPFTIME_SHM_MEMORY_MB=16 BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$SERVER_SO" "$EXE" > server.log 2>&1 &
