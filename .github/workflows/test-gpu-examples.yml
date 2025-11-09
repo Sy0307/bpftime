@@ -69,22 +69,10 @@ jobs:
           git config --global --add http.proxy http://192.168.15.1:2345
           git config --global --add https.proxy http://192.168.15.1:2345
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
-
-      - name: Detect GPU SM and set NVPTX target (CI-only)
-        run: |
-          set -e
-          SM=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -n1 | tr -d '.' || true)
-          if [ -z "$SM" ]; then SM=52; fi
-          echo "Using SM=sm_${SM} for NVPTXCompiler and trampoline/pass"
-          sed -i -E "s/--gpu-name=sm_[0-9]{2}/--gpu-name=sm_${SM}/g" attach/nv_attach_impl/nv_attach_fatbin_record.cpp || true
-          sed -i -E "s/sm_60/sm_${SM}/g" attach/nv_attach_impl/trampoline_ptx.h || true
-          sed -i -E "s/sm_60/sm_${SM}/g" attach/nv_attach_impl/nv_attach_impl.cpp || true
-          sed -i -E "s/sm_60/sm_${SM}/g" attach/nv_attach_impl/pass/ptxpass_kprobe_entry/main.cpp || true
-          sed -i -E "s/sm_60/sm_${SM}/g" attach/nv_attach_impl/pass/ptxpass_kretprobe/main.cpp || true
-          sed -i -E "s/sm_60/sm_${SM}/g" attach/nv_attach_impl/pass/ptxpass_kprobe_memcapture/main.cpp || true
+ 
 
       - name: Check and install required tools
         run: |
@@ -158,8 +146,10 @@ jobs:
             exit 1
           fi
           echo "Launching client with $AGENT_SO: $VICTIM"
-          timeout -s SIGKILL ${CLIENT_TIMEOUT}s env BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$AGENT_SO" bash -lc "$VICTIM" > client.log 2>&1 || true
+          set +e
+          timeout -s SIGKILL ${CLIENT_TIMEOUT}s env BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$AGENT_SO" bash -lc "$VICTIM" > client.log 2>&1
           CLIENT_RC=$?
+          set -e
           echo "Checking expected output: $EXPECTED"
           # treat crashes as failure even if expected string appears
           if [ $CLIENT_RC -ne 0 ] || grep -Eiq "(core dumped|Segmentation fault|Aborted)" server.log client.log; then
