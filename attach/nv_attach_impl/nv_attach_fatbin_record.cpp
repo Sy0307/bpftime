@@ -88,6 +88,29 @@ std::optional<CUjit_target> to_jit_target(int value, bool accelerated)
 	default:
 		return std::nullopt;
 	}
+std::optional<CUjit_target> device_default_target()
+{
+	if (auto err = cuInit(0); err != CUDA_SUCCESS &&
+	    err != CUDA_ERROR_ALREADY_INITIALIZED) {
+		SPDLOG_DEBUG("cuInit failed while probing device target: {}", (int)err);
+		return std::nullopt;
+	}
+	CUdevice dev;
+	if (auto err = cuDeviceGet(&dev, 0); err != CUDA_SUCCESS) {
+		SPDLOG_DEBUG("cuDeviceGet failed while probing device target: {}", (int)err);
+		return std::nullopt;
+	}
+	int major = 0, minor = 0;
+	if (cuDeviceGetAttribute(&major,
+	     CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, dev) != CUDA_SUCCESS ||
+	    cuDeviceGetAttribute(&minor,
+	     CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, dev) != CUDA_SUCCESS) {
+		SPDLOG_DEBUG("cuDeviceGetAttribute failed while probing device target");
+		return std::nullopt;
+	}
+	return to_jit_target(major * 10 + minor, false);
+}
+
 }
 
 std::optional<CUjit_target> find_sm_target(std::string_view text)
