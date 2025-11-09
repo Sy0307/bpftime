@@ -41,37 +41,6 @@ namespace bpftime::attach
 {
 namespace
 {
-struct sm_target
-{
-	int value;
-	bool accelerated;
-};
-
-std::optional<sm_target> parse_sm_number(std::string_view token)
-{
-	if (!token.starts_with("sm_"))
-		return std::nullopt;
-	token.remove_prefix(3);
-	if (token.empty())
-		return std::nullopt;
-	bool accelerated = false;
-	if (auto last = token.back(); last == 'a' || last == 'A') {
-		accelerated = true;
-		token.remove_suffix(1);
-	}
-	if (token.empty())
-		return std::nullopt;
-	int value = 0;
-	for (char c : token) {
-		if (!std::isdigit(static_cast<unsigned char>(c)))
-			return std::nullopt;
-		value = value * 10 + (c - '0');
-	}
-	if (accelerated && value != 90)
-		return std::nullopt;
-	return sm_target{ value, accelerated };
-}
-
 std::optional<CUjit_target> to_jit_target(int value, bool accelerated)
 {
 	if (accelerated) {
@@ -124,17 +93,18 @@ std::optional<CUjit_target> to_jit_target(int value, bool accelerated)
 std::optional<CUjit_target> find_sm_target(std::string_view text)
 {
 	const std::string_view marker = "sm_";
-	auto pos = text.find(marker);
-	while (pos != std::string_view::npos) {
-		if (pos > 0 &&
-		    std::isalnum(
-			    static_cast<unsigned char>(text[pos - 1]))) {
-			pos = text.find(marker, pos + marker.size());
-			continue;
-		}
-		auto current = pos + marker.size();
+	size_t search_pos = 0;
+	while (search_pos < text.size()) {
+		auto pos = text.find(marker, search_pos);
+		if (pos == std::string_view::npos)
+			break;
+		size_t current = pos + marker.size();
+		bool has_digit = false;
+		int value = 0;
 		while (current < text.size() &&
 		       std::isdigit(static_cast<unsigned char>(text[current]))) {
+			has_digit = true;
+			value = value * 10 + (text[current] - '0');
 			current++;
 		}
 		bool accelerated = false;
@@ -143,15 +113,11 @@ std::optional<CUjit_target> find_sm_target(std::string_view text)
 			accelerated = true;
 			current++;
 		}
-		if (auto token = text.substr(pos, current - pos);
-		    token.size() > marker.size()) {
-			if (auto parsed = parse_sm_number(token)) {
-				if (auto jt = to_jit_target(parsed->value,
-							    parsed->accelerated))
-					return jt;
-			}
-		}
-		pos = text.find(marker, current);
+		search_pos = current;
+		if (!has_digit)
+			continue;
+		if (auto target = to_jit_target(value, accelerated))
+			return target;
 	}
 	return std::nullopt;
 }
