@@ -13,6 +13,7 @@ concurrency:
 
 env:
   BPFTIME_VM_NAME: llvm
+  CUDA_FORCE_PTX_JIT: "1"
 
 jobs:
   build-and-test-gpu-examples:
@@ -219,5 +220,4 @@ jobs:
             nvidia_smi_q.xml
             core*
             *.bt
-
 
