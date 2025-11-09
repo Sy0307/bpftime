@@ -13,7 +13,6 @@ concurrency:
 
 env:
   BPFTIME_VM_NAME: llvm
-  CUDA_FORCE_PTX_JIT: "1"
 
 jobs:
   build-and-test-gpu-examples:
@@ -87,6 +86,11 @@ jobs:
           # Check CUDA
           nvcc --version || echo "nvcc not found (CUDA compiler)"
           echo "CUDA location: $(which nvcc)"
+
+      - name: Print GPU info
+        run: |
+          echo "GPU inventory:"
+          nvidia-smi --query-gpu=index,name,driver_version,compute_cap --format=csv
 
       - name: Build bpftime with CUDA support (LLVM JIT)
         shell: bash

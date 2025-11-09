@@ -237,20 +237,13 @@ void fatbin_record::try_loading_ptxs(class nv_attach_impl &impl)
 			options[option_count] = CU_JIT_FALLBACK_STRATEGY;
 			option_values[option_count++] = reinterpret_cast<void *>(
 				static_cast<uintptr_t>(CU_PREFER_PTX));
-		unsigned int target_value = 0;
-		if (auto target = deduce_jit_target(name, ptx)) {
-			target_value = static_cast<unsigned int>(*target);
-				options[option_count] = CU_JIT_TARGET;
-				option_values[option_count++] =
-					reinterpret_cast<void *>(
-						static_cast<uintptr_t>(
-							target_value));
-			SPDLOG_DEBUG("Using CU_JIT_TARGET={} for {}", target_value,
-				     name);
-		} else {
-			options[option_count] = CU_JIT_TARGET_FROM_CUCONTEXT;
-			option_values[option_count++] = nullptr;
-		}
+		// Always use CU_JIT_TARGET_FROM_CUCONTEXT to let CUDA driver
+		// automatically determine the best target from current GPU context.
+		// This avoids "SM version specified by .target is higher than default"
+		// errors when PTX files have specific .target directives.
+		options[option_count] = CU_JIT_TARGET_FROM_CUCONTEXT;
+		option_values[option_count++] = nullptr;
+		SPDLOG_DEBUG("Using CU_JIT_TARGET_FROM_CUCONTEXT for {}", name);
 		if (auto err = cuModuleLoadDataEx(&module, ptx.data(),
 						  option_count, options.data(),
 						  option_values.data());
