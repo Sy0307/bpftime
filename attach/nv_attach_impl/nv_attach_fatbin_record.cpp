@@ -2,6 +2,10 @@
 #include "cuda.h"
 #include "spdlog/spdlog.h"
 #include "nv_attach_impl.hpp"
+#include <cctype>
+#include <iterator>
+#include <optional>
+#include <string_view>
 #define CUDA_DRIVER_CHECK_NO_EXCEPTION(expr, message)                          \
 	do {                                                                   \
 		if (auto err = expr; err != CUDA_SUCCESS) {                    \
@@ -18,6 +22,118 @@
 
 namespace bpftime::attach
 {
+namespace
+{
+std::optional<CUjit_target> parse_sm_token(std::string_view token)
+{
+	if (!token.starts_with("sm_"))
+		return std::nullopt;
+	token.remove_prefix(3);
+	if (token.empty())
+		return std::nullopt;
+	bool accelerated = false;
+	if (auto last = token.back();
+	    last == 'a' || last == 'A') {
+		accelerated = true;
+		token.remove_suffix(1);
+	}
+	if (token.empty())
+		return std::nullopt;
+	int value = 0;
+	for (char c : token) {
+		if (!std::isdigit(static_cast<unsigned char>(c)))
+			return std::nullopt;
+		value = value * 10 + (c - '0');
+	}
+	if (accelerated) {
+		if (value == 90)
+			return CU_TARGET_COMPUTE_90A;
+		return std::nullopt;
+	}
+	switch (value) {
+	case 30:
+		return CU_TARGET_COMPUTE_30;
+	case 32:
+		return CU_TARGET_COMPUTE_32;
+	case 35:
+		return CU_TARGET_COMPUTE_35;
+	case 37:
+		return CU_TARGET_COMPUTE_37;
+	case 50:
+		return CU_TARGET_COMPUTE_50;
+	case 52:
+		return CU_TARGET_COMPUTE_52;
+	case 53:
+		return CU_TARGET_COMPUTE_53;
+	case 60:
+		return CU_TARGET_COMPUTE_60;
+	case 61:
+		return CU_TARGET_COMPUTE_61;
+	case 62:
+		return CU_TARGET_COMPUTE_62;
+	case 70:
+		return CU_TARGET_COMPUTE_70;
+	case 72:
+		return CU_TARGET_COMPUTE_72;
+	case 75:
+		return CU_TARGET_COMPUTE_75;
+	case 80:
+		return CU_TARGET_COMPUTE_80;
+	case 86:
+		return CU_TARGET_COMPUTE_86;
+	case 87:
+		return CU_TARGET_COMPUTE_87;
+	case 89:
+		return CU_TARGET_COMPUTE_89;
+	case 90:
+		return CU_TARGET_COMPUTE_90;
+	default:
+		return std::nullopt;
+	}
+}
+
+std::optional<CUjit_target> find_sm_target(std::string_view text)
+{
+	const std::string_view marker = "sm_";
+	auto pos = text.find(marker);
+	while (pos != std::string_view::npos) {
+		if (pos > 0 &&
+		    std::isalnum(
+			    static_cast<unsigned char>(text[pos - 1]))) {
+			pos = text.find(marker, pos + marker.size());
+			continue;
+		}
+		auto current = pos + marker.size();
+		auto digit_begin = current;
+		while (current < text.size() &&
+		       std::isdigit(static_cast<unsigned char>(text[current]))) {
+			current++;
+		}
+		if (digit_begin == current) {
+			pos = text.find(marker, current);
+			continue;
+		}
+		if (current < text.size() &&
+		    (text[current] == 'a' || text[current] == 'A')) {
+			current++;
+		}
+		auto token = text.substr(pos, current - pos);
+		if (auto target = parse_sm_token(token))
+			return target;
+		pos = text.find(marker, current);
+	}
+	return std::nullopt;
+}
+
+std::optional<CUjit_target> deduce_jit_target(const std::string &module_name,
+					      const std::string &ptx_text)
+{
+	if (auto from_name = find_sm_target(module_name))
+		return from_name;
+	return find_sm_target(ptx_text);
+}
+} // namespace
+
 fatbin_record::~fatbin_record()
 {
 }
@@ -87,22 +203,30 @@ void fatbin_record::try_loading_ptxs(class nv_attach_impl &impl)
 		CUmodule module;
 		SPDLOG_INFO("Loading module: {}", name);
 		char error_buf[8192], info_buf[8192];
-		CUjit_option options[] = {
-			CU_JIT_INFO_LOG_BUFFER,
-			CU_JIT_INFO_LOG_BUFFER_SIZE_BYTES,
-			CU_JIT_ERROR_LOG_BUFFER,
-			CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES,
-			CU_JIT_TARGET_FROM_CUCONTEXT
-		};
-		void *option_values[] = {
-			(void *)info_buf,
-			(void *)std::size(info_buf),
-			(void *)error_buf,
-			(void *)std::size(error_buf),
-			nullptr
-		};
+		CUjit_option options[6];
+		void *option_values[6];
+		size_t option_count = 0;
+		options[option_count] = CU_JIT_INFO_LOG_BUFFER;
+		option_values[option_count++] = (void *)info_buf;
+		options[option_count] = CU_JIT_INFO_LOG_BUFFER_SIZE_BYTES;
+		option_values[option_count++] = (void *)std::size(info_buf);
+		options[option_count] = CU_JIT_ERROR_LOG_BUFFER;
+		option_values[option_count++] = (void *)error_buf;
+		options[option_count] = CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES;
+		option_values[option_count++] = (void *)std::size(error_buf);
+		unsigned int target_value = 0;
+		if (auto target = deduce_jit_target(name, ptx)) {
+			target_value = static_cast<unsigned int>(*target);
+			options[option_count] = CU_JIT_TARGET;
+			option_values[option_count++] = &target_value;
+			SPDLOG_DEBUG("Using CU_JIT_TARGET={} for {}", target_value,
+				     name);
+		} else {
+			options[option_count] = CU_JIT_TARGET_FROM_CUCONTEXT;
+			option_values[option_count++] = nullptr;
+		}
 		if (auto err = cuModuleLoadDataEx(&module, ptx.data(),
-						  std::size(options), options,
+						  option_count, options,
 						  option_values);
 		    err != CUDA_SUCCESS) {
 			SPDLOG_ERROR("Unable to compile module {}: {}", name,
