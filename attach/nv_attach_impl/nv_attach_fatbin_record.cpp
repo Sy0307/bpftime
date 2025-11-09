@@ -72,6 +72,29 @@ std::optional<CUjit_target> to_jit_target(int value, bool accelerated)
 	default:
 		return std::nullopt;
 	}
+std::optional<CUjit_target> device_default_target()
+{
+	if (auto err = cuInit(0); err != CUDA_SUCCESS &&
+	    err != CUDA_ERROR_ALREADY_INITIALIZED) {
+		SPDLOG_DEBUG("cuInit failed while probing device target: {}", (int)err);
+		return std::nullopt;
+	}
+	CUdevice dev;
+	if (auto err = cuDeviceGet(&dev, 0); err != CUDA_SUCCESS) {
+		SPDLOG_DEBUG("cuDeviceGet failed while probing device target: {}", (int)err);
+		return std::nullopt;
+	}
+	int major = 0, minor = 0;
+	if (cuDeviceGetAttribute(&major,
+	     CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, dev) != CUDA_SUCCESS ||
+	    cuDeviceGetAttribute(&minor,
+	     CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, dev) != CUDA_SUCCESS) {
+		SPDLOG_DEBUG("cuDeviceGetAttribute failed while probing device target");
+		return std::nullopt;
+	}
+	return to_jit_target(major * 10 + minor, false);
+}
+
 }
 
 std::optional<CUjit_target> find_sm_target(std::string_view text)
@@ -183,8 +206,8 @@ void fatbin_record::try_loading_ptxs(class nv_attach_impl &impl)
 		CUmodule module;
 		SPDLOG_INFO("Loading module: {}", name);
 		char error_buf[8192]{}, info_buf[8192]{};
-		std::array<CUjit_option, 7> options;
-		std::array<void *, 7> option_values;
+		std::array<CUjit_option, 8> options;
+		std::array<void *, 8> option_values;
 		size_t option_count = 0;
 		options[option_count] = CU_JIT_INFO_LOG_BUFFER;
 		option_values[option_count++] = (void *)info_buf;
@@ -199,14 +222,21 @@ void fatbin_record::try_loading_ptxs(class nv_attach_impl &impl)
 		options[option_count] = CU_JIT_FALLBACK_STRATEGY;
 		option_values[option_count++] = reinterpret_cast<void *>(
 			static_cast<uintptr_t>(CU_PREFER_PTX));
-		// Always use CU_JIT_TARGET_FROM_CUCONTEXT to let CUDA driver
-		// automatically determine the best target from current GPU
-		// context. This avoids "SM version specified by .target is
-		// higher than default" errors when PTX files have specific
-		// .target directives.
-		options[option_count] = CU_JIT_TARGET_FROM_CUCONTEXT;
-		option_values[option_count++] = nullptr;
-		SPDLOG_DEBUG("Using CU_JIT_TARGET_FROM_CUCONTEXT for {}", name);
+		unsigned int target_value = 0;
+		auto target = deduce_jit_target(name, ptx);
+		if (!target)
+			target = device_default_target();
+		if (target) {
+			target_value = static_cast<unsigned int>(*target);
+			options[option_count] = CU_JIT_TARGET;
+			option_values[option_count++] = reinterpret_cast<void *>(
+				static_cast<uintptr_t>(target_value));
+			SPDLOG_DEBUG("Using CU_JIT_TARGET={} for {}", target_value, name);
+		} else {
+			options[option_count] = CU_JIT_TARGET_FROM_CUCONTEXT;
+			option_values[option_count++] = nullptr;
+			SPDLOG_DEBUG("Using CU_JIT_TARGET_FROM_CUCONTEXT for {}", name);
+		}
 		if (auto err = cuModuleLoadDataEx(&module, ptx.data(),
 						  option_count, options.data(),
 						  option_values.data());
