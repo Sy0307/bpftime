@@ -217,8 +217,8 @@ void fatbin_record::try_loading_ptxs(class nv_attach_impl &impl)
 		CUmodule module;
 		SPDLOG_INFO("Loading module: {}", name);
 		char error_buf[8192]{}, info_buf[8192]{};
-			std::array<CUjit_option, 6> options;
-			std::array<void *, 6> option_values;
+			std::array<CUjit_option, 7> options;
+			std::array<void *, 7> option_values;
 			size_t option_count = 0;
 			options[option_count] = CU_JIT_INFO_LOG_BUFFER;
 			option_values[option_count++] = (void *)info_buf;
@@ -234,6 +234,9 @@ void fatbin_record::try_loading_ptxs(class nv_attach_impl &impl)
 				reinterpret_cast<void *>(
 					static_cast<uintptr_t>(
 						sizeof(error_buf)));
+			options[option_count] = CU_JIT_FALLBACK_STRATEGY;
+			option_values[option_count++] = reinterpret_cast<void *>(
+				static_cast<uintptr_t>(CU_PREFER_PTX));
 		unsigned int target_value = 0;
 		if (auto target = deduce_jit_target(name, ptx)) {
 			target_value = static_cast<unsigned int>(*target);
