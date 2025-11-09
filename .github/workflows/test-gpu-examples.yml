@@ -129,6 +129,7 @@ jobs:
           EXE="$EXAMPLE_DIR/${{ matrix.examples.executable }}"
           VICTIM="$EXAMPLE_DIR/${{ matrix.examples.victim }}"
           EXPECTED="${{ matrix.examples.expected_str }}"
+          EXAMPLE_NAME="${{ matrix.examples.name }}"
           CLIENT_TIMEOUT=60
           # enable more logs and coredumps
           export SPDLOG_LEVEL=trace
@@ -136,8 +137,13 @@ jobs:
           export CUDA_LAUNCH_BLOCKING=1
           export CUDA_MODULE_LOADING=LAZY
           ulimit -c unlimited || true
-          echo "Launching server with $SERVER_SO: $EXE (BPFTIME_SHM_MEMORY_MB=16)"
-          BPFTIME_SHM_MEMORY_MB=16 BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$SERVER_SO" "$EXE" > server.log 2>&1 &
+          # tune shared memory size per example (ringbuf-heavy examples need more)
+          SHM_MB=16
+          case "$EXAMPLE_NAME" in
+            kernelretsnoop) SHM_MB=64 ;;  # ringbuf map needs larger shm
+          esac
+          echo "Launching server with $SERVER_SO: $EXE (BPFTIME_SHM_MEMORY_MB=$SHM_MB)"
+          BPFTIME_SHM_MEMORY_MB=$SHM_MB BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$SERVER_SO" "$EXE" > server.log 2>&1 &
           SERVER_PID=$!
           echo "Server PID: $SERVER_PID"
           sleep 5
