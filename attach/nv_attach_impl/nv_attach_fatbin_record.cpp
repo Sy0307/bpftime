@@ -75,11 +75,10 @@ std::optional<CUjit_target> to_jit_target(int value, bool accelerated)
 }
 std::optional<CUjit_target> device_default_target()
 {
-	if (auto err = cuInit(0); err != CUDA_SUCCESS &&
-	    err != CUDA_ERROR_ALREADY_INITIALIZED) {
-		SPDLOG_DEBUG("cuInit failed while probing device target: {}", (int)err);
-		return std::nullopt;
-	}
+    if (auto err = cuInit(0); err != CUDA_SUCCESS) {
+        SPDLOG_DEBUG("cuInit failed while probing device target: {}", (int)err);
+        return std::nullopt;
+    }
 	CUdevice dev;
 	if (auto err = cuDeviceGet(&dev, 0); err != CUDA_SUCCESS) {
 		SPDLOG_DEBUG("cuDeviceGet failed while probing device target: {}", (int)err);
