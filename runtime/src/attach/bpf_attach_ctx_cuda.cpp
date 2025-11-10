@@ -266,13 +266,38 @@ std::optional<std::unique_ptr<cuda::CUDAContext>> create_cuda_context()
 	auto cuda_shared_mem = std::make_unique<cuda::CommSharedMem>();
 	memset(cuda_shared_mem.get(), 0, sizeof(*cuda_shared_mem));
 
-	CUDART_SAFE_CALL(cudaHostRegister(cuda_shared_mem.get(),
-					  sizeof(cuda::CommSharedMem),
-					  cudaHostRegisterDefault),
-			 "Unable to register shared memory");
+    // Register shared memory as MAPPED so device can access it via UVA
+    cudaError_t reg_err = cudaHostRegister(
+        cuda_shared_mem.get(), sizeof(cuda::CommSharedMem), cudaHostRegisterMapped);
+    if (reg_err != cudaSuccess) {
+        SPDLOG_WARN("cudaHostRegister(MAPPED) failed: {}. Falling back to DEFAULT (device access may fail).",
+                    (int)reg_err);
+        CUDART_SAFE_CALL(cudaHostRegister(cuda_shared_mem.get(),
+                                          sizeof(cuda::CommSharedMem),
+                                          cudaHostRegisterDefault),
+                         "Unable to register shared memory");
+    }
 
-	auto cuda_ctx = std::make_optional(std::make_unique<cuda::CUDAContext>(
-		std::move(cuda_shared_mem)));
+    auto cuda_ctx = std::make_optional(std::make_unique<cuda::CUDAContext>(
+        std::move(cuda_shared_mem)));
+
+    // If mapping succeeded, obtain a device-visible pointer to the registered host memory
+    void *dev_ptr = nullptr;
+    cudaError_t devptr_err = cudaHostGetDevicePointer(&dev_ptr,
+                                                      (void *)(*cuda_ctx)->cuda_shared_mem.get(),
+                                                      0);
+    if (devptr_err == cudaSuccess && dev_ptr != nullptr) {
+        (*cuda_ctx)->cuda_shared_mem_device_pointer =
+            reinterpret_cast<uintptr_t>(dev_ptr);
+        SPDLOG_INFO("CUDA mapped host shared memory to device pointer {:x}",
+                    (uintptr_t)(*cuda_ctx)->cuda_shared_mem_device_pointer);
+    } else {
+        SPDLOG_WARN("cudaHostGetDevicePointer failed: {}. Using host pointer {:x} (may not be device-accessible)",
+                    (int)devptr_err,
+                    (uintptr_t)(*cuda_ctx)->cuda_shared_mem.get());
+        (*cuda_ctx)->cuda_shared_mem_device_pointer =
+            reinterpret_cast<uintptr_t>((*cuda_ctx)->cuda_shared_mem.get());
+    }
 
 	SPDLOG_INFO("CUDA context created");
 	return cuda_ctx;

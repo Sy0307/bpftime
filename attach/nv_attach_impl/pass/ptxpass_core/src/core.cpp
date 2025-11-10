@@ -238,13 +238,6 @@ std::string filter_compiled_ptx_for_ebpf_program(std::string input)
 			R"(\.extern\s+\.func\s+\(\s*\.param\s+\.b64\s+func_retval0\s*\)\s+_bpf_helper_ext_\d{4}\s*\(\s*(?:\.param\s+\.b64\s+_bpf_helper_ext_\d{4}_param_\d+\s*,\s*)*\.param\s+\.b64\s+_bpf_helper_ext_\d{4}_param_\d+\s*\)\s*;)"),
 
 	};
-	static const std::string FILTERED_OUT_SECTION[] = {
-		R"(.visible .func bpf_main(
-	.param .b64 bpf_main_param_0,
-	.param .b64 bpf_main_param_1
-))",
-		R"(.visible .func bpf_main())"
-	};
 	while (std::getline(iss, line)) {
 		// if(line.starts_with)
 		bool skip = false;
@@ -258,11 +251,58 @@ std::string filter_compiled_ptx_for_ebpf_program(std::string input)
 			oss << line << std::endl;
 	}
 	auto result = oss.str();
-	for (const auto &sec : FILTERED_OUT_SECTION) {
-		if (auto pos = result.find(sec); pos != result.npos) {
-			result = result.replace(pos, sec.size(), "");
+	
+	// Remove entire bpf_main function (not just signature)
+	// Use manual search to handle brace matching properly
+	while (true) {
+		size_t pos = result.find(".func bpf_main");
+		if (pos == std::string::npos) {
+			break;
+		}
+		
+		// Find the opening brace
+		size_t brace_start = result.find('{', pos);
+		if (brace_start == std::string::npos) {
+			// No opening brace found, just remove the line
+			size_t line_end = result.find('\n', pos);
+			if (line_end != std::string::npos) {
+				result.erase(pos, line_end - pos + 1);
+			} else {
+				result.erase(pos);
+			}
+			continue;
+		}
+		
+		// Find matching closing brace
+		int brace_count = 1;
+		size_t brace_end = brace_start + 1;
+		while (brace_end < result.size() && brace_count > 0) {
+			if (result[brace_end] == '{') {
+				brace_count++;
+			} else if (result[brace_end] == '}') {
+				brace_count--;
+			}
+			brace_end++;
+		}
+		
+		if (brace_count == 0) {
+			// Remove the entire function from pos to brace_end
+			// Also remove trailing newline if present
+			if (brace_end < result.size() && result[brace_end] == '\n') {
+				brace_end++;
+			}
+			result.erase(pos, brace_end - pos);
+		} else {
+			// Couldn't find matching brace, just remove the signature line
+			size_t line_end = result.find('\n', pos);
+			if (line_end != std::string::npos) {
+				result.erase(pos, line_end - pos + 1);
+			} else {
+				result.erase(pos);
+			}
 		}
 	}
+	
 	for (const auto &regex : FILTERED_OUT_REGEXS) {
 		result = std::regex_replace(result, regex, "");
 	}
