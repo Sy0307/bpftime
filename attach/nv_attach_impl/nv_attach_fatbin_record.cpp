@@ -96,8 +96,6 @@ std::optional<CUjit_target> device_default_target()
 	return to_jit_target(major * 10 + minor, false);
 }
 
-}
-
 std::optional<CUjit_target> find_sm_target(std::string_view text)
 {
 	const std::string_view marker = "sm_";
@@ -138,6 +136,11 @@ std::optional<CUjit_target> deduce_jit_target(const std::string &module_name,
 	return find_sm_target(ptx_text);
 }
 } // namespace
+
+} // namespace bpftime::attach
+
+namespace bpftime::attach
+{
 fatbin_record::~fatbin_record()
 {
 }
