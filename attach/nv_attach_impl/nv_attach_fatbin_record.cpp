@@ -72,6 +72,7 @@ std::optional<CUjit_target> to_jit_target(int value, bool accelerated)
 	default:
 		return std::nullopt;
 	}
+}
 std::optional<CUjit_target> device_default_target()
 {
 	if (auto err = cuInit(0); err != CUDA_SUCCESS &&
