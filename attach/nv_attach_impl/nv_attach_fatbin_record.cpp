@@ -321,10 +321,10 @@ void fatbin_record::try_loading_ptxs(class nv_attach_impl &impl)
             int sm_to_use = chosen_sm.value_or(dev_sm.value_or(ptx_sm.value_or(0)));
             auto jit_target = to_jit_target(sm_to_use, false);
             if (jit_target) {
-                // If PTX .target is higher than chosen target, rewrite the PTX .target line
-                if (ptx_sm && *ptx_sm > sm_to_use) {
-                    // rewrite digits in the first .target line containing sm_
+                // Normalize all PTX .target lines to the chosen target to avoid ptxas mismatch
+                {
                     size_t pos = 0;
+                    int rewrites = 0;
                     while (true) {
                         pos = ptx_text.find(".target", pos);
                         if (pos == std::string::npos)
@@ -338,11 +338,15 @@ void fatbin_record::try_loading_ptxs(class nv_attach_impl &impl)
                             while (cur < line_end && std::isdigit(static_cast<unsigned char>(ptx_text[cur]))) {
                                 ++cur;
                             }
+                            auto before = std::string(ptx_text.substr(digits_start, cur - digits_start));
                             ptx_text.replace(digits_start, cur - digits_start, std::to_string(sm_to_use));
-                            SPDLOG_INFO("Rewriting PTX .target sm_{} -> sm_{} for {}", *ptx_sm, sm_to_use, name);
-                            break;
+                            rewrites++;
+                            SPDLOG_DEBUG("Rewriting PTX .target sm_{} -> sm_{} for {} (line at {})", before, sm_to_use, name, (int)pos);
                         }
                         pos = (line_end == ptx_text.size()) ? line_end : (line_end + 1);
+                    }
+                    if (rewrites > 0) {
+                        SPDLOG_INFO("Rewrote {} PTX .target line(s) to sm_{} for {}", rewrites, sm_to_use, name);
                     }
                 }
                 unsigned int target_value = static_cast<unsigned int>(*jit_target);
@@ -366,9 +370,13 @@ void fatbin_record::try_loading_ptxs(class nv_attach_impl &impl)
             SPDLOG_DEBUG("Using CU_JIT_TARGET_FROM_CUCONTEXT for {} (no target hints)", name);
         }
 
+        // Lower optimization level to improve robustness across older drivers
+        options[option_count] = CU_JIT_OPTIMIZATION_LEVEL;
+        option_values[option_count++] = reinterpret_cast<void *>(static_cast<uintptr_t>(0));
+
         if (auto err = cuModuleLoadDataEx(&module, ptx_text.data(),
-                                option_count, options.data(),
-                                option_values.data());
+                                 option_count, options.data(),
+                                 option_values.data());
             err != CUDA_SUCCESS) {
             SPDLOG_ERROR("Unable to compile module {}: {}", name,
                          (int)err);
