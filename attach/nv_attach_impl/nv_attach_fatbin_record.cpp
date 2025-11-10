@@ -111,6 +111,52 @@ std::optional<CUjit_target> device_default_target()
 	return to_jit_target(major * 10 + minor, false);
 }
 
+static std::optional<int> sm_from_jit_target(CUjit_target t)
+{
+    switch (t) {
+    case CU_TARGET_COMPUTE_30:
+        return 30;
+    case CU_TARGET_COMPUTE_32:
+        return 32;
+    case CU_TARGET_COMPUTE_35:
+        return 35;
+    case CU_TARGET_COMPUTE_37:
+        return 37;
+    case CU_TARGET_COMPUTE_50:
+        return 50;
+    case CU_TARGET_COMPUTE_52:
+        return 52;
+    case CU_TARGET_COMPUTE_53:
+        return 53;
+    case CU_TARGET_COMPUTE_60:
+        return 60;
+    case CU_TARGET_COMPUTE_61:
+        return 61;
+    case CU_TARGET_COMPUTE_62:
+        return 62;
+    case CU_TARGET_COMPUTE_70:
+        return 70;
+    case CU_TARGET_COMPUTE_72:
+        return 72;
+    case CU_TARGET_COMPUTE_75:
+        return 75;
+    case CU_TARGET_COMPUTE_80:
+        return 80;
+    case CU_TARGET_COMPUTE_86:
+        return 86;
+    case CU_TARGET_COMPUTE_87:
+        return 87;
+    case CU_TARGET_COMPUTE_89:
+        return 89;
+    case CU_TARGET_COMPUTE_90:
+        return 90;
+    case CU_TARGET_COMPUTE_90A:
+        return 90; // treat as 90 for clamping purposes
+    default:
+        return std::nullopt;
+    }
+}
+
 std::optional<CUjit_target> find_sm_target(std::string_view text)
 {
 	const std::string_view marker = "sm_";
