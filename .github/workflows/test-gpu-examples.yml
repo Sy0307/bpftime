@@ -163,10 +163,12 @@ jobs:
           # Show what's left
           echo "Remaining shared memory files:"
           ls -la /dev/shm/ 2>/dev/null | grep -i bpftime || echo "No bpftime shared memory found"
-          # Clean up any leftover temporary files
-          rm -f /tmp/bpftime-* || true
-          rm -f /tmp/ptx_register_guard_output_*.ptx || true
-          rm -rf /tmp/bpftime-fatbin-work.* || true
+          # Clean up any leftover temporary files/directories quietly
+          shopt -s nullglob
+          for path in /tmp/bpftime-* /tmp/bpftime-mock.* /tmp/bpftime-fatbin-work.* /tmp/ptx_register_guard_output_*.ptx; do
+            rm -rf "$path" || true
+          done
+          shopt -u nullglob
           # tune shared memory size per example (ringbuf-heavy examples need more)
           SHM_MB=16
           case "$EXAMPLE_NAME" in
@@ -260,4 +262,3 @@ jobs:
             patched.*.ptx
             core*
             *.bt
-
