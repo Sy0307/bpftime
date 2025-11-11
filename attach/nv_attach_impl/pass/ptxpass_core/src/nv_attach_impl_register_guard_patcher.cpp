@@ -632,7 +632,8 @@ std::string add_register_guard_for_ebpf_ptx_func(const std::string &ptxCode)
 		}
 	}
 
-	// Debug: Save result to a temp file for inspection
+	// Debug: Save result to a temp file for inspection (always enabled for
+	// debugging)
 	static int debug_counter = 0;
 	std::string debug_filename = "/tmp/ptx_register_guard_output_" +
 				     std::to_string(debug_counter++) + ".ptx";
@@ -640,8 +641,10 @@ std::string add_register_guard_for_ebpf_ptx_func(const std::string &ptxCode)
 	if (debug_out.is_open()) {
 		debug_out << resultPtx;
 		debug_out.close();
-		std::cerr << "[DEBUG] Saved register-guarded PTX to "
-			  << debug_filename << std::endl;
+		// Log to stderr so it appears in CI logs
+		std::cerr << "[PTX_DEBUG] Saved register-guarded PTX (#"
+			  << (debug_counter - 1) << ") to " << debug_filename
+			  << " (" << resultPtx.size() << " bytes)" << std::endl;
 	}
 
 	return resultPtx;
