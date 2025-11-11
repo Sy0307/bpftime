@@ -54,8 +54,14 @@ patch_entry(const std::string &ptx, const std::string &kernel,
 		insertPos++;
 
 	out.insert(insertPos, std::string("\n    call ") + fname + ";\n");
-	// Insert generated function AFTER PTX headers (before first .entry/.func)
+	// Insert generated function AFTER PTX headers (before first
+	// .entry/.func)
 	{
+		// Recompile with headers filtered but WITHOUT register guard to
+		// reduce risk of illegal accesses
+		func_ptx = ptxpass::compile_ebpf_to_ptx_from_words(
+			ebpf_words, "sm_60", fname,
+			/*add_register_guard*/ false, false);
 		size_t insert_pos = std::string::npos;
 		auto update_pos = [&](size_t cand) {
 			if (cand != std::string::npos) {

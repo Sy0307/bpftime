@@ -137,9 +137,10 @@ patch_memcapture(const std::string &ptx,
 			std::vector<uint64_t> packed(
 				packed_words,
 				packed_words + insts_local.size());
+			// Compile PTX with headers filtered but WITHOUT register guard
 			auto func_ptx = ptxpass::compile_ebpf_to_ptx_from_words(
 				packed, "sm_60",
-				"__memcapture__" + std::to_string(count), true,
+				"__memcapture__" + std::to_string(count), false,
 				false);
 			auto func_name = std::string("__memcapture__") +
 					 std::to_string(count);
