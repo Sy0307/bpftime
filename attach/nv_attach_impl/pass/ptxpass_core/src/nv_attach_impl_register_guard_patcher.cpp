@@ -71,7 +71,7 @@ std::string add_register_guard_for_ebpf_ptx_func(const std::string &ptxCode)
 	std::vector<std::string> currentFunctionLines;
 	bool inFunctionDefinition = false;
 	bool inFunctionBody = false;
-	int braceDepth = 0;  // Track brace nesting depth
+	int braceDepth = 0; // Track brace nesting depth
 
 	const std::string tempBaseReg = "%rd_ptx_instr_base";
 	const std::string tempAddrReg = "%rd_ptx_instr_addr";
@@ -92,18 +92,28 @@ std::string add_register_guard_for_ebpf_ptx_func(const std::string &ptxCode)
 			if (std::regex_search(line, openingBraceRegex)) {
 				inFunctionBody = true;
 				inFunctionDefinition = false;
-				braceDepth = 1;  // Start counting from the opening brace
+				braceDepth = 1; // Start counting from the
+						// opening brace
 			}
 		} else if (inFunctionBody) {
-			currentFunctionLines.push_back(line);
-			// Count braces on this line to track nesting depth
-			if (std::regex_search(line, openingBraceRegex)) {
+			// Count braces on this line BEFORE adding to
+			// currentFunctionLines to properly track nesting depth
+			bool hasOpeningBrace =
+				std::regex_search(line, openingBraceRegex);
+			bool hasClosingBrace =
+				std::regex_search(line, closingBraceRegex);
+
+			if (hasOpeningBrace) {
 				braceDepth++;
 			}
-			if (std::regex_search(line, closingBraceRegex)) {
+			if (hasClosingBrace) {
 				braceDepth--;
 			}
-			// Only process the function when we reach the matching closing brace
+
+			currentFunctionLines.push_back(line);
+
+			// Only process the function when we reach the matching
+			// closing brace
 			if (braceDepth == 0) {
 				std::vector<RegisterInfo> registersToSaveInFunc;
 
@@ -595,6 +605,8 @@ std::string add_register_guard_for_ebpf_ptx_func(const std::string &ptxCode)
 				}
 				currentFunctionLines.clear();
 				inFunctionBody = false;
+				braceDepth = 0; // Reset brace depth for next
+						// function
 			}
 		}
 	}
