@@ -169,6 +169,8 @@ jobs:
             rm -rf "$path" || true
           done
           shopt -u nullglob
+          # ensure previous logs do not interfere
+          rm -f server.log client.log || true
           # tune shared memory size per example (ringbuf-heavy examples need more)
           SHM_MB=16
           case "$EXAMPLE_NAME" in
