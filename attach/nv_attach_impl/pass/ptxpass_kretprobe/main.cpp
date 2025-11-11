@@ -39,6 +39,7 @@ patch_retprobe(const std::string &ptx, const std::string &kernel,
 {
 	std::string fname = std::string("__retprobe_func__") + kernel;
 
+	// Compile eBPF PTX with headers filtered but WITHOUT register guard
 	auto func_ptx = ptxpass::compile_ebpf_to_ptx_from_words(
 		ebpf_words, "sm_61", fname, true, false);
 	auto body = ptxpass::find_kernel_body(ptx, kernel);
@@ -51,7 +52,8 @@ patch_retprobe(const std::string &ptx, const std::string &kernel,
 	section = std::regex_replace(
 		section, retpat, std::string("$1call ") + fname + ";\n$1$2");
 	out.replace(body.first, body.second - body.first, section);
-	// Insert generated function AFTER PTX headers (before first .entry/.func)
+	// Insert generated function AFTER PTX headers (before first
+	// .entry/.func)
 	{
 		size_t insert_pos = std::string::npos;
 		auto update_pos = [&](size_t cand) {
