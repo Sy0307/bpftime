@@ -1,11 +1,13 @@
 #include "nv_gpu_shared_array_map.hpp"
 #include "bpftime_shm.hpp"
 #include "bpftime_shm_internal.hpp"
+#include "bpf_map/gpu/cuda_context_helpers.hpp"
 #include "cuda.h"
 #include "linux/bpf.h"
 #include "spdlog/spdlog.h"
 #include <cerrno>
 #include <cstdint>
+#include <memory>
 #include <stdexcept>
 #include <unistd.h>
 
@@ -34,7 +36,11 @@ nv_gpu_shared_array_map_impl::nv_gpu_shared_array_map_impl(
 	SPDLOG_INFO(
 		"Initializing map type of BPF_MAP_TYPE_GPU_ARRAY_MAP (device), total_buffer_size={}",
 		total_buffer_size);
-	if (auto err = cuMemAlloc(&server_gpu_shared_mem, total_buffer_size);
+    {
+        bpftime::cuda_utils::scoped_primary_ctx ctx_guard(
+            owner_cuda_context);
+        if (auto err =
+		    cuMemAlloc(&server_gpu_shared_mem, total_buffer_size);
 	    err != CUDA_SUCCESS) {
 		SPDLOG_ERROR(
 			"Unable to allocate GPU buffer for nv_gpu_shared_array_map_impl: {}",
@@ -42,12 +48,13 @@ nv_gpu_shared_array_map_impl::nv_gpu_shared_array_map_impl(
 		throw std::runtime_error(
 			"Unable to allocate GPU buffer for nv_gpu_shared_array_map_impl");
 	}
-	if (auto err = cuMemsetD8(server_gpu_shared_mem, 0, total_buffer_size);
+        if (auto err = cuMemsetD8(server_gpu_shared_mem, 0,
+				  total_buffer_size);
 	    err != CUDA_SUCCESS) {
 		SPDLOG_ERROR("Unable to fill GPU buffer with zero: {}",
 			     (int)err);
 	}
-	if (auto err = cuIpcGetMemHandle(&this->gpu_mem_handle,
+        if (auto err = cuIpcGetMemHandle(&this->gpu_mem_handle,
 					 server_gpu_shared_mem);
 	    err != CUDA_SUCCESS) {
 		SPDLOG_ERROR(
@@ -56,6 +63,7 @@ nv_gpu_shared_array_map_impl::nv_gpu_shared_array_map_impl(
 		throw std::runtime_error(
 			"Unable to open CUDA IPC handle for nv_gpu_shared_array_map_impl");
 	}
+    }
 }
 
 void *nv_gpu_shared_array_map_impl::elem_lookup(const void *key)
