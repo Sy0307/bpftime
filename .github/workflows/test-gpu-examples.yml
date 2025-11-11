@@ -200,6 +200,9 @@ jobs:
           dmesg | tail -n 200 > dmesg_tail.log 2>/dev/null || true
           nvidia-smi -L > nvidia_smi_l.log 2>&1 || true
           nvidia-smi -q -x > nvidia_smi_q.xml 2>&1 || true
+          # Collect debug PTX files
+          cp /tmp/ptx_register_guard_output_*.ptx . 2>/dev/null || true
+          cp /tmp/bpftime-fatbin-work.*/patched.*.ptx . 2>/dev/null || true
           # Try backtrace core files if any
           CORES=$(ls -1 core* 2>/dev/null || true)
           if [ -n "$CORES" ]; then
@@ -222,6 +225,8 @@ jobs:
             dmesg_tail.log
             nvidia_smi_l.log
             nvidia_smi_q.xml
+            ptx_register_guard_output_*.ptx
+            patched.*.ptx
             core*
             *.bt
 

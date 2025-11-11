@@ -2,6 +2,7 @@
 #include <vector>
 #include <regex>
 #include <sstream>
+#include <fstream>
 #include <algorithm> // Required for std::find, std::find_if
 #include <iostream> // For potential debugging, can be removed
 #include <stdexcept> // Required for std::invalid_argument, std::out_of_range
@@ -91,13 +92,23 @@ std::string add_register_guard_for_ebpf_ptx_func(const std::string &ptxCode)
 			}
 		} else if (inFunctionDefinition) {
 			currentFunctionLines.push_back(line);
-			// Check if this line contains an opening brace (could
-			// be on same line as function decl)
-			if (std::regex_search(line, hasOpeningBraceRegex)) {
+			// Check if this line contains opening brace(s)
+			// Count them properly in case there are multiple
+			int openBracesInLine = 0;
+			int closeBracesInLine = 0;
+			for (char c : line) {
+				if (c == '{')
+					openBracesInLine++;
+				else if (c == '}')
+					closeBracesInLine++;
+			}
+			if (openBracesInLine > 0) {
 				inFunctionBody = true;
 				inFunctionDefinition = false;
-				braceDepth = 1; // Start counting from the
-						// opening brace
+				// Initialize braceDepth with net braces from
+				// this line
+				braceDepth =
+					openBracesInLine - closeBracesInLine;
 			}
 		} else if (inFunctionBody) {
 			// Count ALL braces on this line by scanning each
@@ -620,6 +631,19 @@ std::string add_register_guard_for_ebpf_ptx_func(const std::string &ptxCode)
 			resultPtx += l + "\n";
 		}
 	}
+
+	// Debug: Save result to a temp file for inspection
+	static int debug_counter = 0;
+	std::string debug_filename = "/tmp/ptx_register_guard_output_" +
+				     std::to_string(debug_counter++) + ".ptx";
+	std::ofstream debug_out(debug_filename);
+	if (debug_out.is_open()) {
+		debug_out << resultPtx;
+		debug_out.close();
+		std::cerr << "[DEBUG] Saved register-guarded PTX to "
+			  << debug_filename << std::endl;
+	}
+
 	return resultPtx;
 }
 
