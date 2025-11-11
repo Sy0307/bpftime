@@ -100,20 +100,15 @@ std::string add_register_guard_for_ebpf_ptx_func(const std::string &ptxCode)
 						// opening brace
 			}
 		} else if (inFunctionBody) {
-			// Count ALL braces on this line to properly track
-			// nesting depth Use
-			// hasOpeningBraceRegex/hasClosingBraceRegex to match
-			// any { or }
-			bool hasOpeningBrace =
-				std::regex_search(line, hasOpeningBraceRegex);
-			bool hasClosingBrace =
-				std::regex_search(line, hasClosingBraceRegex);
-
-			if (hasOpeningBrace) {
-				braceDepth++;
-			}
-			if (hasClosingBrace) {
-				braceDepth--;
+			// Count ALL braces on this line by scanning each
+			// character Cannot use regex_search because it only
+			// checks existence, not count
+			for (char c : line) {
+				if (c == '{') {
+					braceDepth++;
+				} else if (c == '}') {
+					braceDepth--;
+				}
 			}
 
 			currentFunctionLines.push_back(line);
