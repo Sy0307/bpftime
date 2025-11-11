@@ -64,8 +64,10 @@ std::string add_register_guard_for_ebpf_ptx_func(const std::string &ptxCode)
 		R"(^\s*\.reg\s+(\.\w+)\s+([%a-zA-Z_][a-zA-Z0-9_@$.]*)(?:<(\d+)>)?\s*;)");
 	std::regex localDeclRegex(R"(^\s*\.local\s+)");
 	std::regex commentOrEmptyRegex(R"(^\s*(//.*|\s*$))");
-	std::regex openingBraceRegex(R"(^\s*\{\s*$)");
-	std::regex closingBraceRegex(R"(^\s*\}\s*$)");
+	std::regex openingBraceRegex(R"(^\s*\{\s*$)"); // Matches standalone {
+	std::regex closingBraceRegex(R"(^\s*\}\s*$)"); // Matches standalone }
+	std::regex hasOpeningBraceRegex(R"(\{)"); // Matches any { in the line
+	std::regex hasClosingBraceRegex(R"(\})"); // Matches any } in the line
 	std::regex retRegex(R"(^\s*(?:@%p\d+\s+)?ret\s*;)");
 
 	std::vector<std::string> currentFunctionLines;
@@ -89,19 +91,23 @@ std::string add_register_guard_for_ebpf_ptx_func(const std::string &ptxCode)
 			}
 		} else if (inFunctionDefinition) {
 			currentFunctionLines.push_back(line);
-			if (std::regex_search(line, openingBraceRegex)) {
+			// Check if this line contains an opening brace (could
+			// be on same line as function decl)
+			if (std::regex_search(line, hasOpeningBraceRegex)) {
 				inFunctionBody = true;
 				inFunctionDefinition = false;
 				braceDepth = 1; // Start counting from the
 						// opening brace
 			}
 		} else if (inFunctionBody) {
-			// Count braces on this line BEFORE adding to
-			// currentFunctionLines to properly track nesting depth
+			// Count ALL braces on this line to properly track
+			// nesting depth Use
+			// hasOpeningBraceRegex/hasClosingBraceRegex to match
+			// any { or }
 			bool hasOpeningBrace =
-				std::regex_search(line, openingBraceRegex);
+				std::regex_search(line, hasOpeningBraceRegex);
 			bool hasClosingBrace =
-				std::regex_search(line, closingBraceRegex);
+				std::regex_search(line, hasClosingBraceRegex);
 
 			if (hasOpeningBrace) {
 				braceDepth++;
@@ -129,9 +135,11 @@ std::string add_register_guard_for_ebpf_ptx_func(const std::string &ptxCode)
 				}
 				for (size_t i = searchStartOffsetBrace;
 				     i < currentFunctionLines.size(); ++i) {
+					// Look for ANY line with opening brace,
+					// not just standalone
 					if (std::regex_search(
 						    currentFunctionLines[i],
-						    openingBraceRegex)) {
+						    hasOpeningBraceRegex)) {
 						currentFuncActualOpeningBraceIdx =
 							i;
 						break;
