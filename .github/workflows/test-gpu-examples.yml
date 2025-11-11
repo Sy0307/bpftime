@@ -142,6 +142,31 @@ jobs:
           export CUDA_LAUNCH_BLOCKING=1
           export CUDA_MODULE_LOADING=LAZY
           ulimit -c unlimited || true
+          # Clean up any previous bpftime processes and shared memory
+          echo "Cleaning up previous bpftime processes and shared memory..."
+          # Kill all bpftime related processes
+          pkill -9 -f "LD_PRELOAD.*libbpftime.*\.so" || true
+          pkill -9 -f "kernelretsnoop" || true
+          pkill -9 -f "threadhist" || true
+          pkill -9 -f "cuda_probe" || true
+          pkill -9 -f "launchlate" || true
+          pkill -9 -f "mem_trace" || true
+          pkill -9 -f "vec_add" || true
+          sleep 2
+          # Remove all bpftime shared memory segments and semaphores
+          rm -f /dev/shm/bpftime_maps_shm || true
+          rm -f /dev/shm/sem.bpftime_maps_shm* || true
+          rm -f /dev/shm/bpftime* || true
+          rm -f /dev/shm/sem.bpftime* || true
+          # Also clean up any POSIX message queues if they exist
+          rm -f /dev/mqueue/bpftime* || true
+          # Show what's left
+          echo "Remaining shared memory files:"
+          ls -la /dev/shm/ 2>/dev/null | grep -i bpftime || echo "No bpftime shared memory found"
+          # Clean up any leftover temporary files
+          rm -f /tmp/bpftime-* || true
+          rm -f /tmp/ptx_register_guard_output_*.ptx || true
+          rm -rf /tmp/bpftime-fatbin-work.* || true
           # tune shared memory size per example (ringbuf-heavy examples need more)
           SHM_MB=16
           case "$EXAMPLE_NAME" in
