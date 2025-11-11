@@ -425,7 +425,9 @@ std::string add_register_guard_for_ebpf_ptx_func(const std::string &ptxCode)
 						pushSs << "\t// --- BEGIN REGISTER SAVING (PUSH to "
 						       << registerSaveAreaName
 						       << ") ---\n";
-						pushSs << "\tmov.u64 "
+						// Convert local symbol to a
+						// local-space pointer
+						pushSs << "\tcvta.local.u64 "
 						       << tempBaseReg << ", "
 						       << registerSaveAreaName
 						       << ";\n";
@@ -485,7 +487,9 @@ std::string add_register_guard_for_ebpf_ptx_func(const std::string &ptxCode)
 						popSs << "\n\t// --- BEGIN REGISTER RESTORING (POP from "
 						      << registerSaveAreaName
 						      << ") ---\n";
-						popSs << "\tmov.u64 "
+						// Convert local symbol to a
+						// local-space pointer
+						popSs << "\tcvta.local.u64 "
 						      << tempBaseReg << ", "
 						      << registerSaveAreaName
 						      << ";\n";
