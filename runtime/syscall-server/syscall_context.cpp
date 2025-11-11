@@ -327,11 +327,7 @@ int syscall_context::create_kernel_bpf_prog_in_userspace(int cmd,
 
 long syscall_context::handle_sysbpf(int cmd, union bpf_attr *attr, size_t size)
 {
-	// Always intercept BPF syscalls unless explicitly configured to use
-	// kernel
-	if (!enable_mock || initializing_cuda)
-		return orig_syscall_fn(__NR_bpf, (long)cmd,
-				       (long)(uintptr_t)attr, (long)size);
+	// Ensure runtime is initialized before first BPF call
 	try_startup();
 	errno = 0;
 	char *errmsg;
