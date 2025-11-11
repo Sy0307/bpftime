@@ -71,6 +71,7 @@ std::string add_register_guard_for_ebpf_ptx_func(const std::string &ptxCode)
 	std::vector<std::string> currentFunctionLines;
 	bool inFunctionDefinition = false;
 	bool inFunctionBody = false;
+	int braceDepth = 0;  // Track brace nesting depth
 
 	const std::string tempBaseReg = "%rd_ptx_instr_base";
 	const std::string tempAddrReg = "%rd_ptx_instr_addr";
@@ -91,10 +92,19 @@ std::string add_register_guard_for_ebpf_ptx_func(const std::string &ptxCode)
 			if (std::regex_search(line, openingBraceRegex)) {
 				inFunctionBody = true;
 				inFunctionDefinition = false;
+				braceDepth = 1;  // Start counting from the opening brace
 			}
 		} else if (inFunctionBody) {
 			currentFunctionLines.push_back(line);
+			// Count braces on this line to track nesting depth
+			if (std::regex_search(line, openingBraceRegex)) {
+				braceDepth++;
+			}
 			if (std::regex_search(line, closingBraceRegex)) {
+				braceDepth--;
+			}
+			// Only process the function when we reach the matching closing brace
+			if (braceDepth == 0) {
 				std::vector<RegisterInfo> registersToSaveInFunc;
 
 				// 1. Determine the actual insertion point for
