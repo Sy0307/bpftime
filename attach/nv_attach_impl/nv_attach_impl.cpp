@@ -5,6 +5,9 @@
 #include "frida-gum.h"
 
 #include "nvPTXCompiler.h"
+#include "bpftime_shm_internal.hpp"
+#include "handler/map_handler.hpp"
+#include "bpf_map/gpu/nv_gpu_ringbuf_map.hpp"
 #include "nv_attach_private_data.hpp"
 #include "nv_attach_utils.hpp"
 #include "spdlog/spdlog.h"
@@ -47,6 +50,7 @@
 #include <variant>
 #include <vector>
 #include <boost/asio.hpp>
+#include <algorithm>
 #include "ptxpass/core.hpp"
 #include "ptx_pass_config.h"
 using namespace bpftime;
@@ -132,6 +136,7 @@ int nv_attach_impl::create_attach_with_ebpf_callback(
 
 		hook_entries[id] = std::move(entry);
 		this->map_basic_info = data.map_basic_info;
+		this->rebase_gpu_ringbuf_map_buffers();
 		this->shared_mem_ptr = data.comm_shared_mem;
 		SPDLOG_INFO("Recorded pass {} for func {}",
 			    matched->executable_path.c_str(), func_name);
@@ -668,6 +673,51 @@ int nv_attach_impl::run_attach_entry_on_gpu(int attach_id, int run_count,
 		}
 	}
 	return 0;
+}
+
+void nv_attach_impl::rebase_gpu_ringbuf_map_buffers()
+{
+	if (!this->map_basic_info.has_value())
+		return;
+	auto manager = shm_holder.global_shared_memory.get_manager();
+	if (!manager) {
+		SPDLOG_WARN(
+			"Unable to rebase GPU ringbuf pointers: handler manager missing");
+		return;
+	}
+	auto &infos = *this->map_basic_info;
+	const size_t limit = std::min(infos.size(), manager->size());
+	for (size_t fd = 0; fd < limit; ++fd) {
+		auto &info = infos[fd];
+		if (!info.enabled ||
+		    info.map_type !=
+			    (int)bpf_map_type::BPF_MAP_TYPE_GPU_RINGBUF_MAP)
+			continue;
+		if (!manager->is_allocated(fd))
+			continue;
+		const auto &handler_variant = manager->get_handler(fd);
+		if (!std::holds_alternative<bpf_map_handler>(handler_variant)) {
+			SPDLOG_WARN(
+				"Map info entry {} expected map handler but found different type",
+				fd);
+			continue;
+		}
+		const auto &handler =
+			std::get<bpf_map_handler>(handler_variant);
+		auto impl_opt = handler.try_get_nv_gpu_ringbuf_map_impl();
+		if (!impl_opt) {
+			SPDLOG_WARN(
+				"Failed to obtain nv_gpu_ringbuf_map_impl for fd {} while rebasing pointers",
+				fd);
+			continue;
+		}
+		auto buffer_ptr = reinterpret_cast<void *>(
+			static_cast<uintptr_t>(impl_opt.value()->get_gpu_mem_buffer()));
+		info.extra_buffer = buffer_ptr;
+		SPDLOG_DEBUG(
+			"Rebased GPU ringbuf map fd {} extra_buffer to {:x}",
+			fd, (uintptr_t)buffer_ptr);
+	}
 }
 
 void nv_attach_impl::mirror_cuda_memcpy_to_symbol(
