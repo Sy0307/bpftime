@@ -179,6 +179,7 @@ class nv_attach_impl final : public base_attach_impl {
 	void *original_cu_graph_kernel_node_set_params_v2 = nullptr;
 
     private:
+	void rebase_gpu_ringbuf_map_buffers();
 	void *frida_interceptor;
 	void *frida_listener;
 	std::vector<std::unique_ptr<CUDARuntimeFunctionHookerContext>>
