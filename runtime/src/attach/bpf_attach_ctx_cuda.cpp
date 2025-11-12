@@ -1,5 +1,6 @@
 #include "bpftime_prog.hpp"
 #include "bpftime_shm_internal.hpp"
+#include "bpf_map/gpu/cuda_context_helpers.hpp"
 #include "cuda_runtime_api.h"
 #include "driver_types.h"
 #include "nv_attach_impl.hpp"

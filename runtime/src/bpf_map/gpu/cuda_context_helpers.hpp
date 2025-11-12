@@ -3,11 +3,39 @@
 
 #include "cuda.h"
 #include "spdlog/spdlog.h"
+#include <cuda_runtime_api.h>
 #include <mutex>
 #include <stdexcept>
 
 namespace bpftime::cuda_utils
 {
+inline void ensure_device_can_map_host_memory()
+{
+	static std::once_flag flag;
+	static cudaError_t last_result = cudaSuccess;
+	std::call_once(flag, []() {
+		auto err = cudaSetDeviceFlags(cudaDeviceMapHost |
+					      cudaDeviceScheduleAuto);
+		last_result = err;
+		if (err == cudaSuccess) {
+			SPDLOG_DEBUG(
+				"Enabled cudaDeviceMapHost flag for CUDA helpers");
+		} else if (err == cudaErrorSetOnActiveProcess) {
+			SPDLOG_WARN(
+				"cudaSetDeviceFlags(cudaDeviceMapHost) called after context was created; assuming target already enabled zero-copy support");
+		} else {
+			SPDLOG_ERROR(
+				"cudaSetDeviceFlags(cudaDeviceMapHost) failed: {}",
+				(int)err);
+		}
+	});
+	if (last_result != cudaSuccess &&
+	    last_result != cudaErrorSetOnActiveProcess) {
+		throw std::runtime_error(
+			"Unable to enable cudaDeviceMapHost flag (required for CUDA helpers)");
+	}
+}
+
 inline void cuda_throw_on_error(CUresult err, const char *message)
 {
 	if (err != CUDA_SUCCESS) {
