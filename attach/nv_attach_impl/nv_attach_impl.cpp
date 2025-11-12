@@ -5,8 +5,7 @@
 #include "frida-gum.h"
 
 #include "nvPTXCompiler.h"
-#include "bpftime_shm_internal.hpp"
-#include "handler/map_handler.hpp"
+#include <bpftime_shm_internal.hpp>
 #include "bpf_map/gpu/nv_gpu_ringbuf_map.hpp"
 #include "nv_attach_private_data.hpp"
 #include "nv_attach_utils.hpp"
