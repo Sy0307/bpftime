@@ -77,6 +77,9 @@ struct nv_attach_entry {
 	// Extra serialized parameters (JSON string) reserved for future use
 	std::optional<std::string> extras;
 	struct pass_cfg_with_exec_path *config;
+	bool inline_enabled = false;
+	std::string inline_metadata;
+	bool inline_fallback_enabled = true;
 };
 
 struct pass_cfg_with_exec_path {
@@ -141,6 +144,7 @@ class nv_attach_impl final : public base_attach_impl {
 				    int grid_dim_x = 1, int grid_dim_y = 1,
 				    int grid_dim_z = 1, int block_dim_x = 1,
 				    int block_dim_y = 1, int block_dim_z = 1);
+	std::vector<char> compile_ptx_to_cubin(const std::string &ptx) const;
 	std::vector<std::unique_ptr<fatbin_record>> fatbin_records;
 	fatbin_record *current_fatbin = nullptr;
 	std::map<void *, fatbin_record *> symbol_address_to_fatbin;
@@ -156,6 +160,7 @@ class nv_attach_impl final : public base_attach_impl {
 	// discovered pass definitions
 	std::vector<std::unique_ptr<pass_cfg_with_exec_path>>
 		pass_configurations;
+	std::string target_sm_arch;
 };
 
 std::string add_semicolon_for_variable_lines(std::string input);

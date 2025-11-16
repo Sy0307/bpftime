@@ -8,6 +8,7 @@
 #include <regex>
 #include <sstream>
 #include <ebpf_inst.h>
+#include <optional>
 namespace memcapture_params
 {
 struct MemcaptureParams {
@@ -38,9 +39,20 @@ static ptxpass::pass_config::PassConfig get_default_config()
 	return cfg;
 }
 
+static std::optional<std::string>
+extract_function_body(const std::string &func_ptx)
+{
+	auto brace_begin = func_ptx.find('{');
+	auto brace_end = func_ptx.rfind('}');
+	if (brace_begin == std::string::npos || brace_end == std::string::npos ||
+	    brace_end <= brace_begin)
+		return std::nullopt;
+	return func_ptx.substr(brace_begin + 1, brace_end - brace_begin - 1);
+}
+
 static std::pair<std::string, bool>
 patch_memcapture(const std::string &ptx,
-		 const std::vector<uint64_t> &ebpf_words)
+		 const std::vector<uint64_t> &ebpf_words, bool inline_mode)
 {
 	static std::regex ld_st_pattern(
 		R"(^\s*(ld|st)\.(const|global|local|param)?\.(((s|u|b)(8|16|32|64))|\.b128|(\.f(16|16x2|32|64))) +(.+), *(.+);\s*$)");
@@ -137,12 +149,19 @@ patch_memcapture(const std::string &ptx,
 			std::vector<uint64_t> packed(
 				packed_words,
 				packed_words + insts_local.size());
-			auto func_ptx = ptxpass::compile_ebpf_to_ptx_from_words(
-				packed, "sm_60",
-				"__memcapture__" + std::to_string(count), true,
-				false);
 			auto func_name = std::string("__memcapture__") +
 					 std::to_string(count);
+			auto func_ptx = ptxpass::compile_ebpf_to_ptx_from_words(
+				packed, "sm_60", func_name, false, false);
+			if (inline_mode) {
+				if (auto body_text =
+					    extract_function_body(func_ptx);
+				    body_text.has_value()) {
+					out_body << "\n" << body_text.value()
+						 << "\n";
+					continue;
+				}
+			}
 			out_funcs << func_ptx << "\n";
 			out_body << "call " << func_name << ";\n";
 		}
@@ -178,9 +197,16 @@ extern "C" int process_input(const char *input, int length, char *output)
 		}
 		auto [out, modified] = patch_memcapture(
 			runtime_request.input.full_ptx,
-			runtime_request.get_uint64_ebpf_instructions());
+			runtime_request.get_uint64_ebpf_instructions(),
+			runtime_request.inline_mode);
+		ptxpass::runtime_response::RuntimeResponse response;
+		response.output_ptx = out;
+		response.inline_supported =
+			runtime_request.inline_mode && modified;
+		response.inline_blocks.clear();
+		response.required_helpers.clear();
 		snprintf(output, length, "%s",
-			 emit_runtime_response_and_return(out).c_str());
+			 emit_runtime_response_and_return(response).c_str());
 		return ExitCode::Success;
 	} catch (const std::runtime_error &e) {
 		std::cerr << e.what() << "\n";

@@ -5,13 +5,57 @@ namespace bpftime
 {
 namespace attach
 {
-std::string get_defaul_trampoline_ptx()
+namespace
+{
+void replace_all(std::string &target, const std::string &from,
+		 const std::string &to)
+{
+	if (from.empty())
+		return;
+	size_t pos = 0;
+	while ((pos = target.find(from, pos)) != std::string::npos) {
+		target.replace(pos, from.size(), to);
+		pos += to.size();
+	}
+}
+
+void rewrite_inline_helper_symbols(std::string &helpers)
+{
+	replace_all(helpers, LEGACY_CONST_PTR_SYMBOL,
+		    INLINE_CONST_PTR_SYMBOL);
+	replace_all(helpers, LEGACY_MAP_INFO_SYMBOL,
+		    INLINE_MAP_INFO_SYMBOL);
+}
+} // namespace
+
+std::string get_default_trampoline_ptx()
 {
 	return TRAMPOLINE_PTX;
 }
 std::string wrap_ptx_with_trampoline(std::string input)
 {
-	return get_defaul_trampoline_ptx() + input;
+	return get_default_trampoline_ptx() + input;
+}
+static std::string build_inline_helper_ptx()
+{
+	static std::string inline_ptx = []() {
+		std::string helpers = get_default_trampoline_ptx();
+		const std::string entry_marker = ".visible .entry bpf_main";
+		if (auto pos = helpers.find(entry_marker); pos != helpers.npos) {
+			auto next_func = helpers.find(".visible .func", pos + entry_marker.size());
+			if (next_func == helpers.npos)
+				helpers.erase(pos);
+			else
+				helpers.erase(pos, next_func - pos);
+		}
+		rewrite_inline_helper_symbols(helpers);
+		return helpers;
+	}();
+	return inline_ptx;
+}
+std::string wrap_ptx_with_inline_helpers(std::string input)
+{
+	return build_inline_helper_ptx() + input;
 }
 std::string patch_helper_names_and_header(std::string result)
 {

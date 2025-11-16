@@ -7,6 +7,16 @@ namespace bpftime
 {
 namespace attach
 {
+inline constexpr const char *INLINE_CONST_PTR_SYMBOL =
+	"__bpftime_inline_const_ptr";
+inline constexpr const char *INLINE_MAP_INFO_SYMBOL =
+	"__bpftime_inline_map_info";
+inline constexpr const char *INLINE_HELPER_STATE_SYMBOL =
+	"__bpftime_inline_helper_state";
+inline constexpr const char *INLINE_CONST_PTR_COMPAT_SYMBOL =
+	"__bpftime_inline_comm_ptr";
+inline constexpr const char *LEGACY_CONST_PTR_SYMBOL = "constData";
+inline constexpr const char *LEGACY_MAP_INFO_SYMBOL = "map_info";
 extern "C" {
 typedef struct {
 	int magic;
@@ -35,6 +45,7 @@ std::string get_default_trampoline_ptx();
 std::string patch_helper_names_and_header(std::string ptx_to_wrap);
 std::string patch_main_from_func_to_entry(std::string);
 std::string wrap_ptx_with_trampoline(std::string input);
+std::string wrap_ptx_with_inline_helpers(std::string input);
 
 } // namespace attach
 } // namespace bpftime

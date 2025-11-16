@@ -28,6 +28,11 @@ std::string nv_attach_private_data::to_string() const
 		oss << " ";
 	}
 	oss << "comm_shared_mem=" << std::hex << comm_shared_mem << " ";
+	oss << "inline_enabled=" << inline_enabled << " ";
+	oss << "inline_fallback_enabled=" << inline_fallback_enabled << " ";
+	if (!inline_metadata.empty()) {
+		oss << "inline_metadata=" << inline_metadata << " ";
+	}
 	return oss.str();
 };
 

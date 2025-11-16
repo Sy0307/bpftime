@@ -7,6 +7,7 @@
 #include <exception>
 #include <iostream>
 #include <string>
+#include <optional>
 
 namespace retprobe_params
 {
@@ -31,6 +32,55 @@ static ptxpass::pass_config::PassConfig get_default_config()
 	cfg.validation = nlohmann::json::object();
 	cfg.attach_type = 9; // kretprobe
 	return cfg;
+}
+
+static ptxpass::runtime_response::InlineBlock
+build_inline_block(const std::string &kernel,
+		   const std::string &insertion_point,
+		   const std::string &text)
+{
+	ptxpass::runtime_response::InlineBlock block;
+	block.kernel = kernel;
+	block.insertion_point = insertion_point;
+	block.text = text;
+	return block;
+}
+
+static std::optional<std::string>
+extract_function_body(const std::string &func_ptx)
+{
+	auto brace_begin = func_ptx.find('{');
+	auto brace_end = func_ptx.rfind('}');
+	if (brace_begin == std::string::npos || brace_end == std::string::npos ||
+	    brace_end <= brace_begin)
+		return std::nullopt;
+	return func_ptx.substr(brace_begin + 1, brace_end - brace_begin - 1);
+}
+
+static bool try_generate_inline_response(
+	const ptxpass::runtime_request::RuntimeRequest &runtime_request,
+	const std::vector<uint64_t> &ebpf_words,
+	ptxpass::runtime_response::RuntimeResponse &response)
+{
+	if (!runtime_request.inline_mode || ebpf_words.empty())
+		return false;
+	const auto &kernel = runtime_request.input.to_patch_kernel;
+	std::string fname = std::string("__retprobe_func__") + kernel;
+	auto func_ptx = ptxpass::compile_ebpf_to_ptx_from_words(
+		ebpf_words, "sm_60", fname, false, false);
+	auto body = extract_function_body(func_ptx);
+	if (!body.has_value())
+		return false;
+	auto sanitized = ptxpass::sanitize_inline_ptx_body(
+		kernel, "ret", body.value());
+	response.inline_supported = true;
+	auto block =
+		build_inline_block(kernel, "ret", sanitized.text);
+	block.registers = sanitized.registers;
+	block.local_decls = sanitized.local_decls;
+	response.inline_blocks.push_back(block);
+	response.required_helpers.clear();
+	return true;
 }
 
 static std::pair<std::string, bool>
@@ -75,13 +125,32 @@ extern "C" int process_input(const char *input, int length, char *output)
 		if (!validate_input(runtime_request.input.full_ptx,
 				    cfg.validation))
 			return ExitCode::TransformFailed;
+		auto words = runtime_request.get_uint64_ebpf_instructions();
+		ptxpass::runtime_response::RuntimeResponse response;
+		response.output_ptx = runtime_request.input.full_ptx;
+		response.inline_supported = false;
+		response.inline_blocks.clear();
+		response.required_helpers.clear();
+
+		if (try_generate_inline_response(
+			    runtime_request, words, response)) {
+			snprintf(output, length, "%s",
+				 emit_runtime_response_and_return(response)
+					 .c_str());
+			return ExitCode::Success;
+		}
+
 		auto [out, modified] = patch_retprobe(
 			runtime_request.input.full_ptx,
-			runtime_request.input.to_patch_kernel,
-			runtime_request.get_uint64_ebpf_instructions());
+			runtime_request.input.to_patch_kernel, words);
+		response.output_ptx = out;
+		response.inline_supported = false;
+		response.inline_blocks.clear();
+		response.required_helpers.clear();
 		snprintf(output, length, "%s",
-			 emit_runtime_response_and_return(out).c_str());
-		return ExitCode::Success;
+			 emit_runtime_response_and_return(response).c_str());
+		return modified ? ExitCode::Success :
+				  ExitCode::TransformFailed;
 	} catch (const std::runtime_error &e) {
 		std::cerr << e.what() << "\n";
 		return ExitCode::ConfigError;

@@ -14,9 +14,11 @@
 #include <cstring>
 #include <iterator>
 #include <string>
+#include <string_view>
 #include <unistd.h>
 #include <cerrno>
 #include <cstdint>
+#include <cstdlib>
 #include <map>
 #include <memory>
 #include <syscall_table.hpp>
@@ -39,6 +41,42 @@
 extern "C" uint64_t bpftime_set_retval(uint64_t value);
 namespace bpftime
 {
+namespace
+{
+#ifdef BPFTIME_ENABLE_CUDA_ATTACH
+bool env_value_is_enabled(const char *value)
+{
+	if (!value || value[0] == '\0')
+		return false;
+	std::string_view view(value);
+	if (view == "1" || view == "true" || view == "TRUE" ||
+	    view == "True" || view == "on" || view == "ON" ||
+	    view == "On" || view == "yes" || view == "YES" ||
+	    view == "Yes")
+		return true;
+	return false;
+}
+bool is_cuda_inline_probe_enabled()
+{
+	const char *env = std::getenv("BPFTIME_CUDA_INLINE_PROBE");
+	return env_value_is_enabled(env);
+}
+bool is_cuda_inline_fallback_enabled()
+{
+	const char *env = std::getenv("BPFTIME_CUDA_INLINE_FALLBACK");
+	if (!env || env[0] == '\0')
+		return true;
+	return env_value_is_enabled(env);
+}
+std::string get_cuda_inline_metadata()
+{
+	const char *env = std::getenv("BPFTIME_CUDA_INLINE_METADATA");
+	if (env && env[0] != '\0')
+		return std::string(env);
+	return {};
+}
+#endif
+} // namespace
 
 static int load_prog_and_helpers(bpftime_prog *prog, const agent_config &config)
 {
@@ -287,6 +325,15 @@ int bpf_attach_ctx::instantiate_bpf_link_handler_at(
 			SPDLOG_INFO(
 				"Loaded {} instructions (original) for cuda ebpf program",
 				prog->get_insns().size());
+			nv_attach_private_data.inline_enabled =
+				is_cuda_inline_probe_enabled();
+			nv_attach_private_data.inline_fallback_enabled =
+				is_cuda_inline_fallback_enabled();
+			if (auto metadata = get_cuda_inline_metadata();
+			    !metadata.empty()) {
+				nv_attach_private_data.inline_metadata =
+					metadata;
+			}
 			nv_attach_private_data.map_basic_info =
 				this->create_map_basic_info(256);
 			attach_id =

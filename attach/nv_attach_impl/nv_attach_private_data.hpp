@@ -6,6 +6,7 @@
 #include <variant>
 #include <ebpf_inst.h>
 #include <vector>
+#include <string>
 namespace bpftime
 {
 namespace attach
@@ -18,6 +19,9 @@ struct nv_attach_private_data final : public attach_private_data {
 	std::vector<MapBasicInfo> map_basic_info;
 	std::vector<ebpf_inst> instructions;
 	std::string program_name;
+	bool inline_enabled = false;
+	std::string inline_metadata;
+	bool inline_fallback_enabled = true;
 	int initialize_from_string(const std::string_view &sv) override;
 	std::string to_string() const override;
 };

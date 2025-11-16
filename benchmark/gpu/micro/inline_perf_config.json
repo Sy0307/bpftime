@@ -1,0 +1,218 @@
+{
+  "output_prefix": "benchmark/gpu/micro/inline_perf",
+  "global_env": {},
+  "probe_env": {
+    "BPFTIME_LOG_OUTPUT": "console",
+    "LD_PRELOAD": "build/runtime/syscall-server/libbpftime-syscall-server.so"
+  },
+  "agent_env": {
+    "BPFTIME_LOG_OUTPUT": "console",
+    "LD_PRELOAD": "build/runtime/agent/libbpftime-agent.so"
+  },
+  "workload_presets": {
+    "tiny": "benchmark/gpu/workload/vec_add 32 10000 32 1",
+    "small": "benchmark/gpu/workload/vec_add 1000 10000 256 4",
+    "medium": "benchmark/gpu/workload/vec_add 10000 10000 256 40",
+    "large": "benchmark/gpu/workload/vec_add 100000 1000 512 196",
+    "xlarge": "benchmark/gpu/workload/vec_add 1000000 1000 512 1954"
+  },
+  "test_cases": [
+    {
+      "name": "Baseline (tiny)",
+      "probe_binary_cmd": "",
+      "workload": "tiny"
+    },
+    {
+      "name": "Baseline (small)",
+      "probe_binary_cmd": "",
+      "workload": "small"
+    },
+    {
+      "name": "Baseline (medium)",
+      "probe_binary_cmd": "",
+      "workload": "medium"
+    },
+    {
+      "name": "Baseline (large)",
+      "probe_binary_cmd": "",
+      "workload": "large"
+    },
+    {
+      "name": "Empty probe - Inline (tiny)",
+      "probe_binary_cmd": "benchmark/gpu/micro/cuda_probe empty",
+      "workload": "tiny",
+      "baseline": "Baseline (tiny)",
+      "agent_env": {
+        "BPFTIME_LOG_OUTPUT": "console",
+        "BPFTIME_CUDA_INLINE_PROBE": "1",
+        "LD_PRELOAD": "build/runtime/agent/libbpftime-agent.so"
+      }
+    },
+    {
+      "name": "Empty probe - Legacy (tiny)",
+      "probe_binary_cmd": "benchmark/gpu/micro/cuda_probe empty",
+      "workload": "tiny",
+      "baseline": "Baseline (tiny)",
+      "agent_env": {
+        "BPFTIME_LOG_OUTPUT": "console",
+        "BPFTIME_CUDA_INLINE_PROBE": "0",
+        "LD_PRELOAD": "build/runtime/agent/libbpftime-agent.so"
+      }
+    },
+    {
+      "name": "Empty probe - Inline (small)",
+      "probe_binary_cmd": "benchmark/gpu/micro/cuda_probe empty",
+      "workload": "small",
+      "baseline": "Baseline (small)",
+      "agent_env": {
+        "BPFTIME_LOG_OUTPUT": "console",
+        "BPFTIME_CUDA_INLINE_PROBE": "1",
+        "LD_PRELOAD": "build/runtime/agent/libbpftime-agent.so"
+      }
+    },
+    {
+      "name": "Empty probe - Legacy (small)",
+      "probe_binary_cmd": "benchmark/gpu/micro/cuda_probe empty",
+      "workload": "small",
+      "baseline": "Baseline (small)",
+      "agent_env": {
+        "BPFTIME_LOG_OUTPUT": "console",
+        "BPFTIME_CUDA_INLINE_PROBE": "0",
+        "LD_PRELOAD": "build/runtime/agent/libbpftime-agent.so"
+      }
+    },
+    {
+      "name": "Empty probe - Inline (medium)",
+      "probe_binary_cmd": "benchmark/gpu/micro/cuda_probe empty",
+      "workload": "medium",
+      "baseline": "Baseline (medium)",
+      "agent_env": {
+        "BPFTIME_LOG_OUTPUT": "console",
+        "BPFTIME_CUDA_INLINE_PROBE": "1",
+        "LD_PRELOAD": "build/runtime/agent/libbpftime-agent.so"
+      }
+    },
+    {
+      "name": "Empty probe - Legacy (medium)",
+      "probe_binary_cmd": "benchmark/gpu/micro/cuda_probe empty",
+      "workload": "medium",
+      "baseline": "Baseline (medium)",
+      "agent_env": {
+        "BPFTIME_LOG_OUTPUT": "console",
+        "BPFTIME_CUDA_INLINE_PROBE": "0",
+        "LD_PRELOAD": "build/runtime/agent/libbpftime-agent.so"
+      }
+    },
+    {
+      "name": "Empty probe - Inline (large)",
+      "probe_binary_cmd": "benchmark/gpu/micro/cuda_probe empty",
+      "workload": "large",
+      "baseline": "Baseline (large)",
+      "agent_env": {
+        "BPFTIME_LOG_OUTPUT": "console",
+        "BPFTIME_CUDA_INLINE_PROBE": "1",
+        "LD_PRELOAD": "build/runtime/agent/libbpftime-agent.so"
+      }
+    },
+    {
+      "name": "Empty probe - Legacy (large)",
+      "probe_binary_cmd": "benchmark/gpu/micro/cuda_probe empty",
+      "workload": "large",
+      "baseline": "Baseline (large)",
+      "agent_env": {
+        "BPFTIME_LOG_OUTPUT": "console",
+        "BPFTIME_CUDA_INLINE_PROBE": "0",
+        "LD_PRELOAD": "build/runtime/agent/libbpftime-agent.so"
+      }
+    },
+    {
+      "name": "Entry+Exit - Inline (tiny)",
+      "probe_binary_cmd": "benchmark/gpu/micro/cuda_probe both",
+      "workload": "tiny",
+      "baseline": "Baseline (tiny)",
+      "agent_env": {
+        "BPFTIME_LOG_OUTPUT": "console",
+        "BPFTIME_CUDA_INLINE_PROBE": "1",
+        "LD_PRELOAD": "build/runtime/agent/libbpftime-agent.so"
+      }
+    },
+    {
+      "name": "Entry+Exit - Legacy (tiny)",
+      "probe_binary_cmd": "benchmark/gpu/micro/cuda_probe both",
+      "workload": "tiny",
+      "baseline": "Baseline (tiny)",
+      "agent_env": {
+        "BPFTIME_LOG_OUTPUT": "console",
+        "BPFTIME_CUDA_INLINE_PROBE": "0",
+        "LD_PRELOAD": "build/runtime/agent/libbpftime-agent.so"
+      }
+    },
+    {
+      "name": "Entry+Exit - Inline (small)",
+      "probe_binary_cmd": "benchmark/gpu/micro/cuda_probe both",
+      "workload": "small",
+      "baseline": "Baseline (small)",
+      "agent_env": {
+        "BPFTIME_LOG_OUTPUT": "console",
+        "BPFTIME_CUDA_INLINE_PROBE": "1",
+        "LD_PRELOAD": "build/runtime/agent/libbpftime-agent.so"
+      }
+    },
+    {
+      "name": "Entry+Exit - Legacy (small)",
+      "probe_binary_cmd": "benchmark/gpu/micro/cuda_probe both",
+      "workload": "small",
+      "baseline": "Baseline (small)",
+      "agent_env": {
+        "BPFTIME_LOG_OUTPUT": "console",
+        "BPFTIME_CUDA_INLINE_PROBE": "0",
+        "LD_PRELOAD": "build/runtime/agent/libbpftime-agent.so"
+      }
+    },
+    {
+      "name": "Entry+Exit - Inline (medium)",
+      "probe_binary_cmd": "benchmark/gpu/micro/cuda_probe both",
+      "workload": "medium",
+      "baseline": "Baseline (medium)",
+      "agent_env": {
+        "BPFTIME_LOG_OUTPUT": "console",
+        "BPFTIME_CUDA_INLINE_PROBE": "1",
+        "LD_PRELOAD": "build/runtime/agent/libbpftime-agent.so"
+      }
+    },
+    {
+      "name": "Entry+Exit - Legacy (medium)",
+      "probe_binary_cmd": "benchmark/gpu/micro/cuda_probe both",
+      "workload": "medium",
+      "baseline": "Baseline (medium)",
+      "agent_env": {
+        "BPFTIME_LOG_OUTPUT": "console",
+        "BPFTIME_CUDA_INLINE_PROBE": "0",
+        "LD_PRELOAD": "build/runtime/agent/libbpftime-agent.so"
+      }
+    },
+    {
+      "name": "Entry+Exit - Inline (large)",
+      "probe_binary_cmd": "benchmark/gpu/micro/cuda_probe both",
+      "workload": "large",
+      "baseline": "Baseline (large)",
+      "agent_env": {
+        "BPFTIME_LOG_OUTPUT": "console",
+        "BPFTIME_CUDA_INLINE_PROBE": "1",
+        "LD_PRELOAD": "build/runtime/agent/libbpftime-agent.so"
+      }
+    },
+    {
+      "name": "Entry+Exit - Legacy (large)",
+      "probe_binary_cmd": "benchmark/gpu/micro/cuda_probe both",
+      "workload": "large",
+      "baseline": "Baseline (large)",
+      "agent_env": {
+        "BPFTIME_LOG_OUTPUT": "console",
+        "BPFTIME_CUDA_INLINE_PROBE": "0",
+        "LD_PRELOAD": "build/runtime/agent/libbpftime-agent.so"
+      }
+    }
+  ]
+}
+

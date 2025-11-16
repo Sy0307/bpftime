@@ -83,10 +83,33 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(RuntimeInput, full_ptx,
 // JSON stdout payload
 namespace runtime_response
 {
+struct InlineRegisterUsage {
+	int reg32 = 0;
+	int reg64 = 0;
+	int reg16 = 0;
+	int pred = 0;
+};
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(InlineRegisterUsage, reg32,
+						reg64, reg16, pred);
+struct InlineBlock {
+	std::string kernel;
+	std::string insertion_point;
+	std::string text;
+	InlineRegisterUsage registers;
+	std::vector<std::string> local_decls;
+};
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(InlineBlock, kernel,
+						insertion_point, text, registers,
+						local_decls);
 struct RuntimeResponse {
 	std::string output_ptx;
+	bool inline_supported = false;
+	std::vector<InlineBlock> inline_blocks;
+	std::vector<std::string> required_helpers;
 };
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(RuntimeResponse, output_ptx);
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(RuntimeResponse, output_ptx,
+						inline_supported, inline_blocks,
+						required_helpers);
 } // namespace runtime_response
 
 struct EbpfInstructionPair {
@@ -110,6 +133,8 @@ namespace runtime_request
 struct RuntimeRequest {
 	runtime_input::RuntimeInput input;
 	std::vector<EbpfInstructionPair> ebpf_instructions;
+	bool inline_mode = false;
+	std::string inline_metadata;
 	std::vector<uint64_t> get_uint64_ebpf_instructions() const
 	{
 		std::vector<uint64_t> result;
@@ -125,7 +150,9 @@ struct RuntimeRequest {
 		}
 	}
 };
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(RuntimeRequest, input, ebpf_instructions);
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(RuntimeRequest, input,
+						ebpf_instructions, inline_mode,
+						inline_metadata);
 } // namespace runtime_request
 
 // Validation helpers
@@ -158,25 +185,44 @@ std::pair<size_t, size_t> find_kernel_body(const std::string &ptx,
 void log_transform_stats(const char *pass_name, int matched, size_t bytes_in,
 			 size_t bytes_out);
 
-static inline void emit_runtime_response_and_print(const std::string &str)
+static inline void emit_runtime_response_and_print(
+	const runtime_response::RuntimeResponse &resp)
 {
 	using namespace runtime_response;
-	RuntimeResponse output;
 	nlohmann::json output_json;
-	output.output_ptx = str;
-	to_json(output_json, output);
+	to_json(output_json, resp);
 	std::cout << output_json.dump();
 }
 
-static inline std::string
-emit_runtime_response_and_return(const std::string &str)
+static inline std::string emit_runtime_response_and_return(
+	const runtime_response::RuntimeResponse &resp)
 {
 	using namespace runtime_response;
-	RuntimeResponse output;
 	nlohmann::json output_json;
-	output.output_ptx = str;
-	to_json(output_json, output);
+	to_json(output_json, resp);
 	return output_json.dump();
+}
+
+static inline void emit_runtime_response_and_print(
+	const std::string &ptx_str)
+{
+	runtime_response::RuntimeResponse resp;
+	resp.output_ptx = ptx_str;
+	resp.inline_supported = false;
+	resp.inline_blocks.clear();
+	resp.required_helpers.clear();
+	emit_runtime_response_and_print(resp);
+}
+
+static inline std::string emit_runtime_response_and_return(
+	const std::string &ptx_str)
+{
+	runtime_response::RuntimeResponse resp;
+	resp.output_ptx = ptx_str;
+	resp.inline_supported = false;
+	resp.inline_blocks.clear();
+	resp.required_helpers.clear();
+	return emit_runtime_response_and_return(resp);
 }
 
 static inline pass_config::PassConfig
@@ -197,6 +243,15 @@ pass_runtime_request_from_string(const std::string &str)
 	runtime_request::from_json(input_json, runtime_request);
 	return runtime_request;
 }
+
+struct SanitizedInlinePTX {
+	std::string text;
+	runtime_response::InlineRegisterUsage registers;
+	std::vector<std::string> local_decls;
+};
+SanitizedInlinePTX sanitize_inline_ptx_body(const std::string &kernel,
+					    const std::string &insertion_point,
+					    const std::string &body);
 } // namespace ptxpass
 
 namespace bpftime::attach

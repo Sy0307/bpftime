@@ -7,6 +7,7 @@
 #include "handler/map_handler.hpp"
 #include "linux/bpf.h"
 #include <algorithm>
+#include <array>
 #include <stdexcept>
 #include <system_error>
 #if __APPLE__
@@ -63,15 +64,40 @@ uint64_t bpftime_set_retval(uint64_t retval);
 
 uint64_t bpftime_trace_printk(uint64_t fmt, uint64_t fmt_size, ...)
 {
-	const char *fmt_str = (const char *)fmt;
+	const char *fmt_str = reinterpret_cast<const char *>(fmt);
+	if (!fmt_str)
+		return 0;
 	va_list args;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #pragma GCC diagnostic ignored "-Wvarargs"
-	va_start(args, fmt_str);
-	long ret = vprintf(fmt_str, args);
+	va_start(args, fmt_size);
 #pragma GCC diagnostic pop
+	std::array<char, 512> stack_buf{};
+	va_list args_copy;
+	va_copy(args_copy, args);
+	int needed =
+		vsnprintf(stack_buf.data(), stack_buf.size(), fmt_str, args_copy);
+	va_end(args_copy);
+	std::string message;
+	if (needed < 0) {
+		message = "[trace_printk formatting error]";
+	} else if (static_cast<size_t>(needed) < stack_buf.size()) {
+		message.assign(stack_buf.data(), needed);
+	} else {
+		std::vector<char> dynamic_buf(static_cast<size_t>(needed) + 1);
+		va_list args_retry;
+		va_copy(args_retry, args);
+		vsnprintf(dynamic_buf.data(), dynamic_buf.size(), fmt_str,
+			  args_retry);
+		va_end(args_retry);
+		message.assign(dynamic_buf.data(),
+			       static_cast<size_t>(needed));
+	}
 	va_end(args);
+	if (!message.empty() && message.back() == '\n')
+		message.pop_back();
+	SPDLOG_DEBUG("{}", message);
 	return 0;
 }
 
