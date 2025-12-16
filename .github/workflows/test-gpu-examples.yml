@@ -16,6 +16,7 @@ env:
 
 jobs:
   build-and-test-gpu-examples:
+    if: ${{ github.event_name == 'workflow_dispatch' || matrix.examples.dispatch_only != true }}
     runs-on: [self-hosted, Linux, X64, gpu]
     strategy:
       fail-fast: false
@@ -99,6 +100,13 @@ jobs:
             name: launchlate
             server_timeout: 15
             mode: two-process
+          - path: launchlate-kernel-gpu-shared-map
+            executable: ./launchlate
+            victim: ./vec_add
+            expected_str: "Monitoring CUDA kernel launch latency"
+            name: launchlate-kernel-gpu-shared-map
+            server_timeout: 15
+            mode: two-process
           - path: mem_trace
             executable: ./mem_trace
             victim: ./vec_add
@@ -106,6 +114,14 @@ jobs:
             name: mem_trace
             server_timeout: 15
             mode: two-process
+          - path: cutlass
+            executable: ./counter/cutlass_launch_counter
+            victim: ./gemm/cutlass_gemm --shape 1024x1024x1024 --launches 4 --warmup 1 --verify
+            expected_str: "CUTLASS launches:"
+            name: cutlass
+            server_timeout: 15
+            mode: two-process
+            dispatch_only: true
 
     steps:
       - name: Configure proxy for China
@@ -152,6 +168,7 @@ jobs:
             exit 0
           fi
           echo "No CUDA root with nvcc found under /usr/local and nvcc not in PATH."
+          exit 1
  
 
       - name: Check and install required tools
@@ -161,7 +178,7 @@ jobs:
           sudo apt-get install -y build-essential llvm-dev llvm-18-dev cmake \
             libboost-all-dev libzstd-dev pkg-config ninja-build \
             libelf-dev zlib1g-dev libcurl4-openssl-dev \
-            clang clang-18 gdb
+            clang clang-18 gdb libncurses-dev
           
           # Check CUDA
           nvcc --version || echo "nvcc not found (CUDA compiler)"
@@ -250,6 +267,8 @@ jobs:
           pkill -9 -f "cuda_probe" || true
           pkill -9 -f "launchlate" || true
           pkill -9 -f "mem_trace" || true
+          pkill -9 -f "cutlass_launch_counter" || true
+          pkill -9 -f "cutlass_gemm" || true
           pkill -9 -f "vec_add" || true
           sleep 2
           # Remove all bpftime shared memory segments and semaphores
@@ -335,6 +354,12 @@ jobs:
               directly_run_on_gpu)
                 # For GEMM, expect a non-zero fixed-point value after bpftimetool ran.
                 if grep -Eq "GEMM C\\[0\\]=[1-9]" server.log; then
+                  FOUND=0
+                fi
+                ;;
+              cutlass)
+                # Counter prints periodically; require a non-zero count to ensure attachment worked.
+                if grep -Eq "CUTLASS launches: [1-9]" server.log; then
                   FOUND=0
                 fi
                 ;;
