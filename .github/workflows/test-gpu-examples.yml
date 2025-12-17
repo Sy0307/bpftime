@@ -392,14 +392,14 @@ jobs:
           fi
           # Collect extra diagnostics
           cat /proc/$SERVER_PID/maps > server.maps 2>/dev/null || true
-          dmesg | tail -n 200 > dmesg_tail.log 2>/dev/null || true
+          dmesg 2>/dev/null | tail -n 200 > dmesg_tail.log || true
           nvidia-smi -L > nvidia_smi_l.log 2>&1 || true
           nvidia-smi -q -x > nvidia_smi_q.xml 2>&1 || true
           # Collect debug PTX files
           cp /tmp/ptx_register_guard_output_*.ptx . 2>/dev/null || true
           cp /tmp/bpftime-fatbin-work.*/patched.*.ptx . 2>/dev/null || true
           # Show error context from the last patched PTX file around line 819
-          LAST_PTX=$(ls -t /tmp/bpftime-fatbin-work.*/patched.*.ptx 2>/dev/null | head -1)
+          LAST_PTX=$(ls -t /tmp/bpftime-fatbin-work.*/patched.*.ptx 2>/dev/null | head -1 || true)
           if [ -f "$LAST_PTX" ]; then
             echo "=== Showing lines 810-830 from $LAST_PTX ==="
             sed -n '810,830p' "$LAST_PTX" || true

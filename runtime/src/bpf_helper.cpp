@@ -72,7 +72,11 @@ uint64_t bpftime_trace_printk(uint64_t fmt, uint64_t fmt_size, ...)
 	long ret = vprintf(fmt_str, args);
 #pragma GCC diagnostic pop
 	va_end(args);
-	return 0;
+	// trace_printk is primarily for debugging; flush so logs show up even when
+	// stdout is redirected to a file (e.g., in CI) or when the process is
+	// killed by timeout.
+	fflush(stdout);
+	return (uint64_t)ret;
 }
 
 long bpftime_strncmp(const char *s1, uint64_t s1_sz, const char *s2)
