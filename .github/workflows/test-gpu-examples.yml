@@ -16,7 +16,6 @@ env:
 
 jobs:
   build-and-test-gpu-examples:
-    if: ${{ github.event_name == 'workflow_dispatch' || matrix.examples.dispatch_only != true }}
     runs-on: [self-hosted, Linux, X64, gpu]
     strategy:
       fail-fast: false
