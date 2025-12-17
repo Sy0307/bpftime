@@ -292,7 +292,8 @@ jobs:
           : > client.log
           : > tool.log
           # tune shared memory size per example (ringbuf-heavy examples need more)
-          SHM_MB=16
+          # 16MB is often too small once CUDA init + maps are involved.
+          SHM_MB=64
           case "$EXAMPLE_NAME" in
             kernelretsnoop) SHM_MB=64 ;;  # ringbuf map needs larger shm
             kernel_trace) SHM_MB=256 ;;

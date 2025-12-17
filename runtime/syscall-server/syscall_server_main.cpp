@@ -68,10 +68,22 @@ auto handle_exceptions(F &&f, Args &&...args) noexcept
 		return f(std::forward<Args>(args)...);
 	} catch (const boost::interprocess::bad_alloc &e) {
 		SPDLOG_ERROR("Boost interprocess bad_alloc: {}", e.what());
-		SPDLOG_ERROR("Consider increasing the shared memory size by "
-			     "setting the BPFTIME_SHM_MEMORY_MB env var.");
+		if (const char *mb = std::getenv("BPFTIME_SHM_MEMORY_MB"); mb) {
+			SPDLOG_ERROR(
+				"Consider increasing BPFTIME_SHM_MEMORY_MB (current={})",
+				mb);
+		} else {
+			SPDLOG_ERROR(
+				"Consider increasing BPFTIME_SHM_MEMORY_MB");
+		}
 		std::exit(1);
 		// Terminate the program after logging the exception
+	} catch (const std::exception &e) {
+		SPDLOG_ERROR("Unhandled exception: {}", e.what());
+		std::exit(1);
+	} catch (...) {
+		SPDLOG_ERROR("Unhandled unknown exception");
+		std::exit(1);
 	}
 	// More exceptions can be added here
 }
@@ -161,7 +173,8 @@ extern "C" int openat(int fd, const char *file, int oflag, ...)
 	va_end(args);
 	safe_spdlog_debug("openat {} {} {} {}", fd, safe_ptr_str(file), oflag, arg4);
 	unsigned short mode = (unsigned short)arg4;
-	return context->handle_openat(fd, file, oflag, mode);
+	return handle_exceptions(
+		[&]() { return context->handle_openat(fd, file, oflag, mode); });
 }
 extern "C" int open(const char *file, int oflag, ...)
 {
@@ -172,31 +185,36 @@ extern "C" int open(const char *file, int oflag, ...)
 	va_end(args);
 	safe_spdlog_debug("open {} {} {}", safe_ptr_str(file), oflag, arg3);
 	unsigned short mode = (unsigned short)arg3;
-	return context->handle_open(file, oflag, mode);
+	return handle_exceptions(
+		[&]() { return context->handle_open(file, oflag, mode); });
 }
 extern "C" ssize_t read(int fd, void *buf, size_t count)
 {
 	initialize_ctx();
-	return context->handle_read(fd, buf, count);
+	return handle_exceptions(
+		[&]() { return context->handle_read(fd, buf, count); });
 }
 
 extern "C" FILE *fopen(const char *pathname, const char *flags)
 {
 	initialize_ctx();
 	safe_spdlog_debug("fopen {} {}", safe_ptr_str(pathname), safe_ptr_str(flags));
-	return context->handle_fopen(pathname, flags);
+	return handle_exceptions(
+		[&]() { return context->handle_fopen(pathname, flags); });
 }
 extern "C" FILE *fopen64(const char *pathname, const char *flags)
 {
 	initialize_ctx();
 	safe_spdlog_debug("fopen64 {} {}", safe_ptr_str(pathname), safe_ptr_str(flags));
-	return context->handle_fopen(pathname, flags);
+	return handle_exceptions(
+		[&]() { return context->handle_fopen(pathname, flags); });
 }
 extern "C" FILE *_IO_new_fopen(const char *pathname, const char *flags)
 {
 	initialize_ctx();
 	safe_spdlog_debug("_IO_new_fopen {} {}", safe_ptr_str(pathname), safe_ptr_str(flags));
-	return context->handle_fopen(pathname, flags);
+	return handle_exceptions(
+		[&]() { return context->handle_fopen(pathname, flags); });
 }
 #if __linux__
 extern "C" long syscall(long sysno, ...)
