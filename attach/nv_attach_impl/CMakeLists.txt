@@ -30,7 +30,7 @@ add_library(
     nv_attach_fatbin_record.cpp
 )
 
-add_dependencies(bpftime_nv_attach_impl bpftime_base_attach_impl spdlog::spdlog FridaGum  llvmbpf_vm bpftime_vm_compat ptxpass_core)
+add_dependencies(bpftime_nv_attach_impl bpftime_base_attach_impl spdlog::spdlog FridaGum  llvmbpf_vm bpftime_vm_compat ptxpass_core nv_attach_impl_ptx_compiler)
 set(NV_ATTACH_IMPL_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR} )
 find_cuda()
 

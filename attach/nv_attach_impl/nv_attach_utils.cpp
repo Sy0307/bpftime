@@ -6,13 +6,27 @@
 #include <sstream>
 #include <cstdlib>
 #include <cuda.h>
+#include <regex>
 namespace bpftime
 {
 namespace attach
 {
+
+// Forward declaration
+std::string get_gpu_sm_arch();
+
 std::string get_defaul_trampoline_ptx()
 {
-	return TRAMPOLINE_PTX;
+	std::string ptx = TRAMPOLINE_PTX;
+	std::string target_arch = get_gpu_sm_arch();
+	// Replace .target sm_XX with the actual GPU architecture
+	static const std::regex target_regex(R"(\.target\s+sm_\d+)");
+	std::string replacement = ".target " + target_arch;
+	std::string result = std::regex_replace(ptx, target_regex, replacement);
+	if (result != ptx) {
+		SPDLOG_INFO("Patched trampoline PTX target to {}", target_arch);
+	}
+	return result;
 }
 std::string wrap_ptx_with_trampoline(std::string input)
 {

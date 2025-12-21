@@ -135,7 +135,46 @@ void bpf_attach_ctx::start_cuda_watcher_thread()
 							     .map_lookup;
 					auto ptr = bpftime_map_lookup_elem(
 						map_fd, req.key);
-					resp.value = ptr;
+					// bpftime_map_lookup_elem returns a host pointer inside the
+					// CUDA-registered shared segment. Translate it to a device pointer before returning to GPU code.
+					if (ptr) {
+						cudaPointerAttributes attr;
+						const auto attr_err =
+							cudaPointerGetAttributes(
+								&attr, ptr);
+						if (attr_err == cudaSuccess &&
+						    attr.type ==
+							    cudaMemoryTypeHost &&
+						    attr.devicePointer !=
+							    nullptr) {
+							resp.value =
+								attr.devicePointer;
+						} else {
+							void *device_ptr =
+								nullptr;
+							const auto err =
+								cudaHostGetDevicePointer(
+									&device_ptr,
+									const_cast<void *>(
+										ptr),
+									0);
+							if (err != cudaSuccess) {
+								SPDLOG_ERROR(
+									"Failed to translate map lookup result to device pointer: cudaPointerGetAttributes={} cudaHostGetDevicePointer={}",
+									cudaGetErrorString(
+										attr_err),
+									cudaGetErrorString(
+										err));
+								resp.value =
+									nullptr;
+							} else {
+								resp.value =
+									device_ptr;
+							}
+						}
+					} else {
+						resp.value = nullptr;
+					}
 					SPDLOG_DEBUG(
 						"CUDA: Executing map lookup for {}, key= {:x} result = {:x}",
 						map_fd,
@@ -218,9 +257,10 @@ void bpf_attach_ctx::start_cuda_watcher_thread()
 						    req_id);
 				}
 
+				// Ensure response writes are visible to the GPU before signaling completion (flag2).
+				std::atomic_thread_fence(std::memory_order_seq_cst);
 				ctx->cuda_shared_mem->flag2 = 1;
-				std::atomic_thread_fence(
-					std::memory_order_seq_cst);
+				std::atomic_thread_fence(std::memory_order_seq_cst);
 			}
 			std::this_thread::sleep_for(
 				std::chrono::milliseconds(1));

@@ -425,11 +425,12 @@ std::string add_register_guard_for_ebpf_ptx_func(const std::string &ptxCode)
 						pushSs << "\t// --- BEGIN REGISTER SAVING (PUSH to "
 						       << registerSaveAreaName
 						       << ") ---\n";
-						// Convert local symbol to a
-						// local-space pointer
-						pushSs << "\tcvta.local.u64 "
-						       << tempBaseReg << ", "
-						       << registerSaveAreaName
+						// Use a local-space address as the base for st.local/ld.local.
+						// Do NOT use cvta.local here: it produces a generic address
+						// which is not valid for local memory operations on some GPUs
+						// (e.g., sm_52), leading to invalid __local__ writes.
+						pushSs << "\tmov.u64 " << tempBaseReg
+						       << ", " << registerSaveAreaName
 						       << ";\n";
 						for (const auto &regInfo_outer :
 						     registersToSaveInFunc) { // Iterate to maintain order if needed
@@ -487,11 +488,9 @@ std::string add_register_guard_for_ebpf_ptx_func(const std::string &ptxCode)
 						popSs << "\n\t// --- BEGIN REGISTER RESTORING (POP from "
 						      << registerSaveAreaName
 						      << ") ---\n";
-						// Convert local symbol to a
-						// local-space pointer
-						popSs << "\tcvta.local.u64 "
-						      << tempBaseReg << ", "
-						      << registerSaveAreaName
+						// Same rationale as the PUSH block above.
+						popSs << "\tmov.u64 " << tempBaseReg
+						      << ", " << registerSaveAreaName
 						      << ";\n";
 						// Iterate in reverse order of
 						// saving
