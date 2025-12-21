@@ -142,13 +142,13 @@ void bpf_attach_ctx::start_cuda_watcher_thread()
 						const auto attr_err =
 							cudaPointerGetAttributes(
 								&attr, ptr);
-						if (attr_err == cudaSuccess &&
-						    attr.type ==
-							    cudaMemoryTypeHost &&
-						    attr.devicePointer !=
-							    nullptr) {
-							resp.value =
-								attr.devicePointer;
+						if (attr_err == cudaSuccess) {
+							if (attr.devicePointer != nullptr) {
+								resp.value =
+									attr.devicePointer;
+							} else {
+								resp.value = ptr;
+							}
 						} else {
 							void *device_ptr =
 								nullptr;
@@ -165,8 +165,10 @@ void bpf_attach_ctx::start_cuda_watcher_thread()
 										attr_err),
 									cudaGetErrorString(
 										err));
-								resp.value =
-									nullptr;
+								// Best-effort: preserve semantics for GPU maps that
+								// return a device pointer (cudaPointerGetAttributes may
+								// fail in some edge cases).
+								resp.value = ptr;
 							} else {
 								resp.value =
 									device_ptr;
