@@ -237,7 +237,11 @@ jobs:
           # enable more logs and coredumps
           export SPDLOG_LEVEL=trace
           export BPFTIME_LOG_LEVEL=TRACE
-          export CUDA_LAUNCH_BLOCKING=1
+          # NOTE: CUDA_LAUNCH_BLOCKING=1 can deadlock bpftime's CUDA helper thread:
+          # MAP_UPDATE for GPU shared maps uses CUDA driver APIs (e.g. cuMemcpyHtoDAsync),
+          # which may contend with a blocking kernel launch and never complete.
+          # For CI we want progress, not synchronous launch debugging.
+          export CUDA_LAUNCH_BLOCKING=0
           export CUDA_MODULE_LOADING=LAZY
           export BPFTIME_GLOBAL_SHM_NAME="bpftime_maps_shm_${EXAMPLE_NAME}"
           # GPU per-thread map sizing (some examples are memory-sensitive).
@@ -249,6 +253,8 @@ jobs:
           esac
           export BPFTIME_MAP_GPU_THREAD_COUNT="$GPU_THREAD_COUNT"
           export LD_LIBRARY_PATH="$ROOT_DIR/build/attach/text_segment_transformer:${LD_LIBRARY_PATH:-}"
+          echo "==== /dev/shm capacity (before test) ===="
+          df -h /dev/shm || true
           ulimit -c unlimited || true
           # Clean up any previous bpftime processes and shared memory
           echo "Cleaning up previous bpftime processes and shared memory..."
@@ -302,6 +308,23 @@ jobs:
             atomizer) SHM_MB=64 ;;
             directly_run_on_gpu) SHM_MB=64 ;;
           esac
+          # Guard against small /dev/shm (common in containerized runners).
+          # If /dev/shm is smaller than requested, shared_memory_object::truncate()
+          # will fail with ENOSPC ("No space left on device").
+          AVAIL_MB=$(df --output=avail -m /dev/shm 2>/dev/null | tail -1 | tr -d ' ')
+          if [[ "${AVAIL_MB:-}" =~ ^[0-9]+$ ]] && [ "$AVAIL_MB" -gt 0 ]; then
+            HEADROOM_MB=8
+            MAX_MB=$((AVAIL_MB - HEADROOM_MB))
+            if [ "$MAX_MB" -lt 32 ]; then
+              echo "Not enough /dev/shm available: avail=${AVAIL_MB}MB (need at least 32MB)."
+              df -h /dev/shm || true
+              exit 1
+            fi
+            if [ "$SHM_MB" -gt "$MAX_MB" ]; then
+              echo "Clamping BPFTIME_SHM_MEMORY_MB from $SHM_MB to $MAX_MB due to /dev/shm avail=${AVAIL_MB}MB"
+              SHM_MB="$MAX_MB"
+            fi
+          fi
           if [ "$EXAMPLE_MODE" = "direct-run" ]; then
             pushd "$EXAMPLE_DIR" >/dev/null
             echo "Launching direct-run server with $SERVER_SO: $EXE_REL (BPFTIME_SHM_MEMORY_MB=$SHM_MB)"
