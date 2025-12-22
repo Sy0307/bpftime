@@ -32,10 +32,21 @@ nv_gpu_ringbuf_map_impl::try_initialize_for_agent_and_get_mapped_address()
 			SPDLOG_INFO(
 				"Initializing nv_gpu_ringbuf_map_impl at pid {}",
 				pid);
-			SPDLOG_INFO("Mapped GPU memory for gpu array map: {}",
-				    (uintptr_t)data_buffer.data());
-			agent_gpu_shared_mem[pid] =
-				(CUdeviceptr)data_buffer.data();
+			CUdeviceptr dev_ptr = 0;
+			auto host_ptr = data_buffer.data();
+			if (auto err = cuMemHostGetDevicePointer(
+				    &dev_ptr, host_ptr, 0);
+			    err != CUDA_SUCCESS) {
+				SPDLOG_ERROR(
+					"cuMemHostGetDevicePointer failed for nv_gpu_ringbuf_map_impl host_ptr={:x}: {}",
+					(uintptr_t)host_ptr, (int)err);
+				throw std::runtime_error(
+					"Unable to map host ringbuf buffer into device address space");
+			}
+			SPDLOG_INFO(
+				"Mapped GPU memory for gpu ringbuf map: host_ptr={:x} dev_ptr={:x}",
+				(uintptr_t)host_ptr, (uintptr_t)dev_ptr);
+			agent_gpu_shared_mem[pid] = dev_ptr;
 		}
 		return agent_gpu_shared_mem[pid];
 	} else {

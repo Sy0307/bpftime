@@ -43,11 +43,18 @@ static void poll_callback(const void *data, uint64_t size, void *ctx)
 	const struct kernel_trace_event *event = data;
 	struct poll_state *state = ctx;
 
-	printf(
-		"[kernel_trace] ts=%llu block=(%llu,%llu,%llu) thread=(%llu,%llu,%llu)\n",
-		event->globaltimer, event->block_x, event->block_y,
-		event->block_z, event->thread_x, event->thread_y,
-		event->thread_z);
+	static int verbose = -1;
+	if (verbose == -1) {
+		const char *v = getenv("BPFTIME_KERNEL_TRACE_VERBOSE");
+		verbose = (v && v[0] != '\0' && v[0] != '0') ? 1 : 0;
+	}
+	if (verbose) {
+		printf(
+			"[kernel_trace] ts=%llu block=(%llu,%llu,%llu) thread=(%llu,%llu,%llu)\n",
+			event->globaltimer, event->block_x, event->block_y,
+			event->block_z, event->thread_x, event->thread_y,
+			event->thread_z);
+	}
 	if (state)
 		state->events++;
 }
@@ -58,6 +65,8 @@ int main(int argc, char **argv)
 	int err = 0;
 
 	libbpf_set_print(libbpf_print_fn);
+	// Ensure timely output even when stdout is redirected (e.g. CI logs).
+	setvbuf(stdout, NULL, _IOLBF, 0);
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
 
@@ -105,6 +114,7 @@ int main(int argc, char **argv)
 		if (state.events) {
 			printf("[kernel_trace] total events: %llu\n",
 			       (unsigned long long)state.events);
+			fflush(stdout);
 		}
 		sleep(1);
 	}

@@ -210,10 +210,11 @@ array_map_kernel_gpu_impl::try_initialize_for_agent_and_get_mapped_address()
 		SPDLOG_INFO(
 			"Initializing array_map_kernel_gpu_impl at pid {}, mmap_ptr = 0x{:x}, mmap_sz = {}",
 			pid, (uintptr_t)mmap_ptr, size);
-		CUdeviceptr ptr = (CUdeviceptr)mmap_ptr;
 		registered_host_memory = mmap_ptr;
-		if (auto err = cuMemHostRegister(mmap_ptr, size,
-						 CU_MEMHOSTREGISTER_PORTABLE);
+		if (auto err = cuMemHostRegister(
+			    mmap_ptr, size,
+			    CU_MEMHOSTREGISTER_PORTABLE |
+				    CU_MEMHOSTREGISTER_DEVICEMAP);
 		    err != CUDA_SUCCESS) {
 			SPDLOG_ERROR(
 				"Unable to register host memory for kernel-gpu-shared map: {}",
@@ -222,12 +223,22 @@ array_map_kernel_gpu_impl::try_initialize_for_agent_and_get_mapped_address()
 			throw std::runtime_error(
 				"Unable to register host memory");
 		}
+		CUdeviceptr dev_ptr = 0;
+		if (auto err =
+			    cuMemHostGetDevicePointer(&dev_ptr, mmap_ptr, 0);
+		    err != CUDA_SUCCESS) {
+			SPDLOG_ERROR(
+				"cuMemHostGetDevicePointer failed for kernel-gpu-shared map host_ptr={:x}: {}",
+				(uintptr_t)mmap_ptr, (int)err);
+			throw std::runtime_error(
+				"Unable to get device pointer for kernel-gpu-shared map");
+		}
 		SPDLOG_INFO(
-			"Mapped GPU memory for kernel-gpu shared array map: {}",
-			(uintptr_t)ptr);
-		agent_gpu_shared_mem[pid] = ptr;
+			"Mapped GPU memory for kernel-gpu shared array map: host_ptr={:x} dev_ptr={:x}",
+			(uintptr_t)mmap_ptr, (uintptr_t)dev_ptr);
+		agent_gpu_shared_mem[pid] = dev_ptr;
 		atexit(atexit_fn);
-		return ptr;
+		return dev_ptr;
 	} else {
 		return itr->second;
 	}
