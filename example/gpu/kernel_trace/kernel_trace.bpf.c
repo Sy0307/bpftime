@@ -13,7 +13,12 @@ struct kernel_trace_event {
 
 struct {
 	__uint(type, BPF_MAP_TYPE_GPU_RINGBUF_MAP);
-	__uint(max_entries, 128);
+	// Keep per-thread ring buffer capacity modest so the example can run
+	// even on CI runners with small /dev/shm (e.g. 64MB).
+	// One entry per thread is typically enough because the host drains
+	// at most once per second and the example launches kernels once per
+	// second; keep some slack.
+	__uint(max_entries, 16);
 	__type(key, u32);
 	__type(value, struct kernel_trace_event);
 } events SEC(".maps");
