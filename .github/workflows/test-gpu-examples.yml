@@ -183,6 +183,30 @@ jobs:
           nvcc --version || echo "nvcc not found (CUDA compiler)"
           echo "CUDA location: $(which nvcc)"
 
+      - name: Ensure /dev/shm has enough space
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "==== /dev/shm capacity (before remount) ===="
+          df -h /dev/shm || true
+          # Some self-hosted runners (especially containerized ones) have /dev/shm=64MB by default.
+          # bpftime GPU examples need larger shared memory segments (e.g. kernel_trace uses 256MB).
+          if mount | grep -qE 'on /dev/shm type tmpfs'; then
+            SHM_SIZE_MB="$(df --output=size -m /dev/shm 2>/dev/null | tail -1 | tr -d ' ')"
+            if [[ "${SHM_SIZE_MB:-}" =~ ^[0-9]+$ ]] && [ "$SHM_SIZE_MB" -lt 1024 ]; then
+              echo "Remounting /dev/shm to 2G (was ${SHM_SIZE_MB}MB)..."
+              if ! sudo mount -o remount,size=2G /dev/shm; then
+                echo "WARNING: failed to remount /dev/shm; tests may need larger shm (kernel_trace uses 256MB)."
+              fi
+            else
+              echo "Keeping existing /dev/shm size: ${SHM_SIZE_MB:-unknown}MB"
+            fi
+          else
+            echo "/dev/shm is not tmpfs; skipping remount."
+          fi
+          echo "==== /dev/shm capacity (after remount) ===="
+          df -h /dev/shm || true
+
       - name: Print GPU info
         run: |
           echo "GPU inventory:"

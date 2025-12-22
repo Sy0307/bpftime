@@ -935,7 +935,7 @@ int syscall_context::handle_epoll_wait(int epfd, epoll_event *evt,
 {
 	if (!enable_mock || run_with_kernel || initializing_cuda ||
 	    !enable_mock_after_initialized)
-		orig_epoll_wait_fn(epfd, evt, maxevents, timeout);
+		return orig_epoll_wait_fn(epfd, evt, maxevents, timeout);
 	try_startup();
 	if (bpftime_is_epoll_handler(epfd)) {
 		return bpftime_epoll_wait(epfd, evt, maxevents, timeout);
@@ -947,7 +947,7 @@ int syscall_context::handle_munmap(void *addr, size_t size)
 {
 	if (!enable_mock || run_with_kernel || initializing_cuda ||
 	    !enable_mock_after_initialized)
-		orig_munmap_fn(addr, size);
+		return orig_munmap_fn(addr, size);
 	try_startup();
 	if (auto itr = mocked_mmap_values.find((uintptr_t)addr);
 	    itr != mocked_mmap_values.end()) {
@@ -1011,8 +1011,9 @@ int syscall_context::handle_memfd_create(const char *name, int flags)
 	SPDLOG_DEBUG("Calling mocked memfd_create {}, {}", name, flags);
 	if (!enable_mock || initializing_cuda ||
 	    !enable_mock_after_initialized) {
-		SPDLOG_DEBUG("Calling original dup3");
-		return orig_syscall_fn(__NR_dup3, (long)name, (long)flags);
+		SPDLOG_DEBUG("Calling original memfd_create");
+		return orig_syscall_fn(__NR_memfd_create, (long)name,
+				       (long)flags);
 	}
 	try_startup();
 	return bpftime_add_memfd_handler(name, flags);
