@@ -240,6 +240,9 @@ jobs:
           if ! command -v clang >/dev/null 2>&1 && command -v clang-18 >/dev/null 2>&1; then
             export CLANG=clang-18
           fi
+          # Some examples (e.g. CUTLASS) use CUDA_HOME/NVCC directly instead of PATH lookups.
+          export CUDA_HOME="${BPFTIME_CUDA_ROOT:-/usr/local/cuda}"
+          export NVCC="${CUDA_HOME}/bin/nvcc"
           make -C example/gpu/${{matrix.examples.path}} -j
 
       - name: Test GPU example (per README two-process)
@@ -273,7 +276,7 @@ jobs:
           case "$EXAMPLE_NAME" in
             kernelretsnoop) GPU_THREAD_COUNT=10 ;;       # per README: avoid bad_alloc
             threadhist) GPU_THREAD_COUNT=524288 ;;       # per README: allow large thread id space
-            kernel_trace) GPU_THREAD_COUNT=8192 ;;
+            kernel_trace) GPU_THREAD_COUNT=4096 ;;       # kernel_trace vec_add launches 32*128=4096 threads
           esac
           export BPFTIME_MAP_GPU_THREAD_COUNT="$GPU_THREAD_COUNT"
           export LD_LIBRARY_PATH="$ROOT_DIR/build/attach/text_segment_transformer:${LD_LIBRARY_PATH:-}"
