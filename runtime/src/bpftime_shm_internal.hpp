@@ -79,6 +79,14 @@ class bpftime_shm {
 	{
 		return open_type;
 	}
+	void *get_segment_base() const
+	{
+		return segment.get_address();
+	}
+	std::size_t get_segment_size() const
+	{
+		return segment.get_size();
+	}
 	void set_enable_mock(bool flag)
 	{
 		if (mock_setter.has_value())

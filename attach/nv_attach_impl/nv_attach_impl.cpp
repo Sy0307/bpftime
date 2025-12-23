@@ -60,9 +60,6 @@ namespace bpftime::cuda
 {
 // Provided by runtime CUDA attach context; returns 0 if not initialized.
 uintptr_t get_cuda_shared_mem_device_pointer();
-uintptr_t get_cuda_shm_host_base();
-uintptr_t get_cuda_shm_device_base();
-uint64_t get_cuda_shm_size();
 } // namespace bpftime::cuda
 
 static std::vector<std::filesystem::path> split_by_colon(const std::string &str)
@@ -249,16 +246,6 @@ nv_attach_impl::nv_attach_impl()
 	if (this->shared_mem_ptr != 0) {
 		SPDLOG_INFO("Initialized shared_mem_ptr from CUDAContext: {:x}",
 			    (uintptr_t)this->shared_mem_ptr);
-	}
-	this->shm_host_base = bpftime::cuda::get_cuda_shm_host_base();
-	this->shm_device_base = bpftime::cuda::get_cuda_shm_device_base();
-	this->shm_size = bpftime::cuda::get_cuda_shm_size();
-	if (this->shm_host_base != 0 && this->shm_device_base != 0 &&
-	    this->shm_size != 0) {
-		SPDLOG_INFO(
-			"Initialized SHM segment mapping: host {:x} -> device {:x} (size={})",
-			(uintptr_t)this->shm_host_base,
-			(uintptr_t)this->shm_device_base, this->shm_size);
 	}
 	gum_init_embedded();
 	auto interceptor = gum_interceptor_obtain();
@@ -934,27 +921,6 @@ int nv_attach_impl::run_attach_entry_on_gpu(int attach_id, int run_count,
 			SPDLOG_INFO(
 				"shared_mem_ptr copied: device ptr {:x}, device size {}",
 				(uintptr_t)ptr, bytes);
-		}
-		{
-			CUdeviceptr ptr;
-			size_t bytes;
-			if (CUDA_SUCCESS ==
-			    cuModuleGetGlobal(&ptr, &bytes, module,
-					      "shmHostBase")) {
-				CUDA_SAFE_CALL(cuMemcpyHtoD(
-					ptr, &this->shm_host_base, bytes));
-			}
-			if (CUDA_SUCCESS ==
-			    cuModuleGetGlobal(&ptr, &bytes, module,
-					      "shmDeviceBase")) {
-				CUDA_SAFE_CALL(cuMemcpyHtoD(
-					ptr, &this->shm_device_base, bytes));
-			}
-			if (CUDA_SUCCESS ==
-			    cuModuleGetGlobal(&ptr, &bytes, module, "shmSize")) {
-				CUDA_SAFE_CALL(
-					cuMemcpyHtoD(ptr, &this->shm_size, bytes));
-			}
 		}
 		{
 			CUdeviceptr ptr;
