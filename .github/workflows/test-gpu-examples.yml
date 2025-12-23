@@ -355,7 +355,8 @@ jobs:
           if [ "$EXAMPLE_MODE" = "direct-run" ]; then
             pushd "$EXAMPLE_DIR" >/dev/null
             echo "Launching direct-run server with $SERVER_SO: $EXE_REL (BPFTIME_SHM_MEMORY_MB=$SHM_MB)"
-            BPFTIME_SHM_MEMORY_MB=$SHM_MB BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$SERVER_SO" bash -lc "$EXE_REL" > "$ROOT_DIR/server.log" 2>&1 &
+            # Don't preload into the shell itself; only preload into the target binary.
+            BPFTIME_SHM_MEMORY_MB=$SHM_MB BPFTIME_LOG_OUTPUT=console bash -lc "LD_PRELOAD=\"$SERVER_SO\" exec $EXE_REL" > "$ROOT_DIR/server.log" 2>&1 &
             SERVER_PID=$!
             popd >/dev/null
             echo "Server PID: $SERVER_PID"
@@ -376,7 +377,8 @@ jobs:
           else
             pushd "$EXAMPLE_DIR" >/dev/null
             echo "Launching server with $SERVER_SO: $EXE_REL (BPFTIME_SHM_MEMORY_MB=$SHM_MB)"
-            BPFTIME_SHM_MEMORY_MB=$SHM_MB BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$SERVER_SO" bash -lc "$EXE_REL" > "$ROOT_DIR/server.log" 2>&1 &
+            # Don't preload into the shell itself; only preload into the target binary.
+            BPFTIME_SHM_MEMORY_MB=$SHM_MB BPFTIME_LOG_OUTPUT=console bash -lc "LD_PRELOAD=\"$SERVER_SO\" exec $EXE_REL" > "$ROOT_DIR/server.log" 2>&1 &
             SERVER_PID=$!
             popd >/dev/null
             echo "Server PID: $SERVER_PID"
@@ -388,7 +390,8 @@ jobs:
             echo "Launching client with $AGENT_SO: $VICTIM_REL"
             pushd "$EXAMPLE_DIR" >/dev/null
             set +e
-            timeout -s SIGKILL ${CLIENT_TIMEOUT}s env BPFTIME_LOG_OUTPUT=console LD_PRELOAD="$AGENT_SO" bash -lc "$VICTIM_REL" > "$ROOT_DIR/client.log" 2>&1
+            # Don't preload into the shell itself; only preload into the target binary.
+            timeout -s SIGKILL ${CLIENT_TIMEOUT}s env BPFTIME_LOG_OUTPUT=console bash -lc "LD_PRELOAD=\"$AGENT_SO\" exec $VICTIM_REL" > "$ROOT_DIR/client.log" 2>&1
             CLIENT_RC=$?
             set -e
             popd >/dev/null

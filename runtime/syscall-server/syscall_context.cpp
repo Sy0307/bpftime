@@ -328,7 +328,17 @@ int syscall_context::create_kernel_bpf_prog_in_userspace(int cmd,
 
 long syscall_context::handle_sysbpf(int cmd, union bpf_attr *attr, size_t size)
 {
-	if (!enable_mock || initializing_cuda || !enable_mock_after_initialized)
+	// `enable_mock_after_initialized` is temporarily disabled while calling
+	// CUDA driver APIs (e.g. cuCtxCreate) to avoid interfering with their
+	// syscalls. eBPF syscalls are unrelated to CUDA and must continue to be
+	// intercepted; otherwise libbpf's capability probing may fall back to
+	// kernel BPF and fail in restricted environments (e.g. CI containers).
+	//
+	// Also, during `try_startup()` we temporarily flip `enable_mock=false`
+	// to avoid re-entrancy on unrelated syscalls. We must *not* pass bpf()
+	// through to the kernel in that window, because CI containers often run
+	// without CAP_BPF/CAP_SYS_ADMIN and libbpf would fail with -EPERM.
+	if (initializing_cuda)
 		return orig_syscall_fn(__NR_bpf, (long)cmd,
 				       (long)(uintptr_t)attr, (long)size);
 	try_startup();
@@ -644,7 +654,9 @@ long syscall_context::handle_sysbpf(int cmd, union bpf_attr *attr, size_t size)
 int syscall_context::handle_perfevent(perf_event_attr *attr, pid_t pid, int cpu,
 				      int group_fd, unsigned long flags)
 {
-	if (!enable_mock || initializing_cuda || !enable_mock_after_initialized)
+	// Same rationale as `handle_sysbpf`: keep intercepting perf_event_open
+	// even when syscall mocking is temporarily disabled for CUDA init.
+	if (initializing_cuda)
 		return orig_syscall_fn(__NR_perf_event_open,
 				       (uint64_t)(uintptr_t)attr, (uint64_t)pid,
 				       (uint64_t)cpu, (uint64_t)group_fd,

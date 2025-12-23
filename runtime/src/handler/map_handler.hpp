@@ -88,7 +88,9 @@ class bpf_map_handler {
 
 	{
 		SPDLOG_DEBUG("Create map with type {}", type);
-		pthread_spin_init(&map_lock, 0);
+		// Map handlers live in shared memory and are accessed from both
+		// syscall-server and agent processes; use a process-shared lock.
+		pthread_spin_init(&map_lock, PTHREAD_PROCESS_SHARED);
 		this->name = name;
 	}
 	bpf_map_handler(const bpf_map_handler &) = delete;

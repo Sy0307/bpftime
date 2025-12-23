@@ -55,6 +55,13 @@
 #include "ptx_pass_config.h"
 using namespace bpftime;
 using namespace attach;
+
+namespace bpftime::cuda
+{
+// Provided by runtime CUDA attach context; returns 0 if not initialized.
+uintptr_t get_cuda_shared_mem_device_pointer();
+} // namespace bpftime::cuda
+
 static std::vector<std::filesystem::path> split_by_colon(const std::string &str)
 {
 	std::vector<std::filesystem::path> result;
@@ -136,20 +143,28 @@ int nv_attach_impl::create_attach_with_ebpf_callback(
 
 		hook_entries[id] = std::move(entry);
 		this->map_basic_info = data.map_basic_info;
-		if (data.comm_shared_mem == 0) {
+		uintptr_t comm_shared_mem = data.comm_shared_mem;
+		if (comm_shared_mem == 0) {
+			// comm_shared_mem is a per-process CUDA device pointer for
+			// CommSharedMem, so it cannot be serialized by the server.
+			// Use the CUDAContext-initialized value instead.
+			comm_shared_mem =
+				bpftime::cuda::get_cuda_shared_mem_device_pointer();
+		}
+		if (comm_shared_mem == 0) {
 			SPDLOG_ERROR(
-				"comm_shared_mem is null when creating CUDA attach for {}",
+				"comm_shared_mem is not available when creating CUDA attach for {}",
 				func_name);
 			return -1;
 		}
 		if (this->shared_mem_ptr == 0) {
-			this->shared_mem_ptr = data.comm_shared_mem;
+			this->shared_mem_ptr = comm_shared_mem;
 			SPDLOG_INFO("Cached shared_mem_ptr at {:x}",
 				    (uintptr_t)this->shared_mem_ptr);
-		} else if (this->shared_mem_ptr != data.comm_shared_mem) {
+		} else if (this->shared_mem_ptr != comm_shared_mem) {
 			SPDLOG_WARN(
 				"Ignoring new comm_shared_mem {:x}; already using {:x}",
-				(uintptr_t)data.comm_shared_mem,
+				(uintptr_t)comm_shared_mem,
 				(uintptr_t)this->shared_mem_ptr);
 		}
 		SPDLOG_INFO("Recorded pass {} for func {}",
@@ -210,7 +225,11 @@ nv_attach_impl::nv_attach_impl()
 	this->ptx_pool =
 		std::make_shared<std::map<std::string, std::vector<uint8_t>>>();
 
-	this->shared_mem_ptr = 0;
+	this->shared_mem_ptr = bpftime::cuda::get_cuda_shared_mem_device_pointer();
+	if (this->shared_mem_ptr != 0) {
+		SPDLOG_INFO("Initialized shared_mem_ptr from CUDAContext: {:x}",
+			    (uintptr_t)this->shared_mem_ptr);
+	}
 	gum_init_embedded();
 	auto interceptor = gum_interceptor_obtain();
 	if (interceptor == nullptr) {
@@ -543,14 +562,40 @@ nv_attach_impl::extract_ptxs(std::vector<uint8_t> &&data_vec)
 	boost::process::environment env = boost::this_process::environment();
 	env["LD_PRELOAD"] = "";
 
-	// Build command line - use shell to properly search PATH
-	auto cuobjdump_cmd_line = std::string("cuobjdump --extract-ptx all ") +
-				  fatbin_path.string();
-	SPDLOG_INFO("Calling cuobjdump: {}", cuobjdump_cmd_line);
+	// Resolve cuobjdump even if CUDA bin directory isn't in PATH.
+	std::string cuobjdump_path = "cuobjdump";
+	const auto try_set_cuobjdump = [&](const char *env_name) {
+		const char *root = std::getenv(env_name);
+		if (!root || root[0] == '\0')
+			return false;
+		std::filesystem::path cand =
+			std::filesystem::path(root) / "bin" / "cuobjdump";
+		if (std::filesystem::exists(cand)) {
+			cuobjdump_path = cand.string();
+			return true;
+		}
+		return false;
+	};
+	// Prefer CUDA_HOME (commonly set by examples), then BPFTIME_CUDA_ROOT,
+	// then /usr/local/cuda.
+	(void)try_set_cuobjdump("CUDA_HOME");
+	if (cuobjdump_path == "cuobjdump")
+		(void)try_set_cuobjdump("BPFTIME_CUDA_ROOT");
+	if (cuobjdump_path == "cuobjdump") {
+		std::filesystem::path cand =
+			std::filesystem::path("/usr/local/cuda/bin/cuobjdump");
+		if (std::filesystem::exists(cand)) {
+			cuobjdump_path = cand.string();
+		}
+	}
 
-	// Execute through shell to properly use PATH
+	SPDLOG_INFO("Calling cuobjdump: {} --extract-ptx all {}",
+		    cuobjdump_path, fatbin_path.string());
+
 	boost::process::child child(
-		"/bin/sh", boost::process::args({ "-c", cuobjdump_cmd_line }),
+		cuobjdump_path,
+		boost::process::args({ "--extract-ptx", "all",
+				       fatbin_path.string() }),
 		boost::process::std_out > stream, boost::process::env(env),
 		boost::process::start_dir = tmp_dir);
 
@@ -773,24 +818,14 @@ int nv_attach_impl::run_attach_entry_on_gpu(int attach_id, int run_count,
 		ebpf_words.push_back(*(uint64_t *)(uintptr_t)&insts);
 	}
 	auto ptx = ptxpass::filter_out_version_headers_ptx(
-		wrap_ptx_with_trampoline(filter_compiled_ptx_for_ebpf_program(
-			ptxpass::compile_ebpf_to_ptx_from_words(
-				ebpf_words, sm_arch.c_str(), "bpf_main", false,
-				false),
-			"bpf_main")));
-	{
-		const std::string to_replace = ".func bpf_main";
-
-		// Replace ".func bpf_main" to ".visible .entry bpf_main" so it
-		// can be executed
-		auto bpf_main_pos = ptx.find(to_replace);
-		if (bpf_main_pos == ptx.npos) {
-			SPDLOG_ERROR("Cannot find '{}' in generated PTX code",
-				     to_replace);
-			return -1;
-		}
-		ptx = ptx.replace(bpf_main_pos, to_replace.size(),
-				  ".visible .entry bpf_main");
+		wrap_ptx_with_trampoline(ptxpass::compile_ebpf_to_ptx_from_words(
+			ebpf_words, sm_arch.c_str(), "bpf_main", false, false)));
+	// Make `bpf_main` executable as a kernel entry.
+	ptx = patch_main_from_func_to_entry(std::move(ptx));
+	if (ptx.find(".entry bpf_main") == std::string::npos) {
+		SPDLOG_ERROR(
+			"Failed to convert bpf_main to a PTX entry function");
+		return -1;
 	}
 	if (spdlog::get_level() <= SPDLOG_LEVEL_DEBUG) {
 		auto path = "/tmp/directly-run.ptx";

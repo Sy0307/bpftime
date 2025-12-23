@@ -59,7 +59,7 @@ class bpftime_shm {
 	struct bpftime::agent_config *agent_config = nullptr;
 
 	// Record which pids are injected by agent
-	alive_agent_pids *injected_pids;
+	alive_agent_pids *injected_pids = nullptr;
 
 	// local agent config can be used for test or local process
 	std::optional<struct agent_config> local_agent_config;

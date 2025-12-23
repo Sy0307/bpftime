@@ -49,6 +49,7 @@ extern "C" void bpftime_destroy_global_shm()
 	if (global_shm_initialized) {
 		// SPDLOG_INFO("Global shm destructed");
 		shm_holder.global_shared_memory.~bpftime_shm();
+		global_shm_initialized = false;
 		// Why not spdlog? because global variables that spdlog used
 		// were already destroyed..
 #ifdef DEBUG
@@ -69,6 +70,9 @@ extern "C" void bpftime_remove_global_shm()
 
 static __attribute__((destructor(65535))) void __destruct_shm()
 {
+	if (!global_shm_initialized) {
+		return;
+	}
 	// This usually indicates that the living shared memory object is used
 	// by an agent instance
 	if (bpftime::shm_holder.global_shared_memory.get_open_type() ==
@@ -1018,15 +1022,24 @@ bpftime::bpftime_shm::~bpftime_shm()
 
 void bpftime_shm::add_pid_into_alive_agent_set(int pid)
 {
+	if (!injected_pids) {
+		return;
+	}
 	injected_pids->insert(pid);
 }
 void bpftime_shm::remove_pid_from_alive_agent_set(int pid)
 {
+	if (!injected_pids) {
+		return;
+	}
 	injected_pids->erase(pid);
 }
 void bpftime_shm::iterate_all_pids_in_alive_agent_set(
 	std::function<void(int)> &&cb)
 {
+	if (!injected_pids) {
+		return;
+	}
 	for (auto x : *injected_pids) {
 		cb(x);
 	}

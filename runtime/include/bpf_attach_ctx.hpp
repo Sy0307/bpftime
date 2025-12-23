@@ -122,6 +122,10 @@ struct CUDAContext {
 
 std::optional<std::unique_ptr<cuda::CUDAContext>> create_cuda_context();
 
+// Device pointer returned by cudaHostGetDevicePointer() for CommSharedMem.
+// Returns 0 if CUDA shared memory hasn't been initialized successfully.
+uintptr_t get_cuda_shared_mem_device_pointer();
+
 } // namespace cuda
 #endif
 

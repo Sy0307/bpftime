@@ -20,7 +20,8 @@ nv_gpu_shared_hash_map_impl::nv_gpu_shared_hash_map_impl(
 	  key_buffer(memory.get_segment_manager())
 {
 	key_buffer.resize((key_size + 4) * _num_buckets);
-	pthread_spin_init(&map_lock, 0);
+	// This map lives in shared memory and is accessed cross-process.
+	pthread_spin_init(&map_lock, PTHREAD_PROCESS_SHARED);
 	SPDLOG_INFO(
 		"Initializing map type of BPF_MAP_TYPE_GPU_HASH_MAP (device), key_size={}, value_size={}, max_entries={}, num_buckets={}",
 		key_size, value_size, max_entries, _num_buckets);
