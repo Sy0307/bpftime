@@ -137,46 +137,34 @@ void bpf_attach_ctx::start_cuda_watcher_thread()
 					auto ptr = bpftime_map_lookup_elem(
 						map_fd, req.key);
 					// bpftime_map_lookup_elem returns a host pointer inside the
-					// CUDA-registered shared segment. Translate it to a device pointer before returning to GPU code.
+					// CUDA-registered shared segment. Convert it into a device
+					// pointer before returning to the GPU; otherwise patched
+					// kernels may crash with "illegal memory access".
+					resp.value = nullptr;
 					if (ptr) {
-						cudaPointerAttributes attr;
-						const auto attr_err =
-							cudaPointerGetAttributes(
-								&attr, ptr);
-						if (attr_err == cudaSuccess) {
-							if (attr.devicePointer != nullptr) {
-								resp.value =
-									attr.devicePointer;
-							} else {
-								resp.value = ptr;
-							}
+						void *device_ptr = nullptr;
+						const auto err =
+							cudaHostGetDevicePointer(
+								&device_ptr,
+								const_cast<void *>(
+									ptr),
+								0);
+						if (err == cudaSuccess &&
+						    device_ptr != nullptr) {
+							resp.value =
+								device_ptr;
 						} else {
-							void *device_ptr =
-								nullptr;
-							const auto err =
-								cudaHostGetDevicePointer(
-									&device_ptr,
-									const_cast<void *>(
-										ptr),
-									0);
-							if (err != cudaSuccess) {
-								SPDLOG_ERROR(
-									"Failed to translate map lookup result to device pointer: cudaPointerGetAttributes={} cudaHostGetDevicePointer={}",
-									cudaGetErrorString(
-										attr_err),
-									cudaGetErrorString(
-										err));
-								// Best-effort: preserve semantics for GPU maps that
-								// return a device pointer (cudaPointerGetAttributes may
-								// fail in some edge cases).
-								resp.value = ptr;
-							} else {
-								resp.value =
-									device_ptr;
-							}
+							// Returning a host pointer to device code may
+							// crash the GPU kernel with "illegal memory
+							// access". Treat translation failure as "not
+							// found" so the eBPF program can fall back to
+							// map_update paths safely.
+							SPDLOG_WARN(
+								"cudaHostGetDevicePointer failed ({}), returning nullptr",
+								cudaGetErrorString(
+									err));
+							resp.value = nullptr;
 						}
-					} else {
-						resp.value = nullptr;
 					}
 					SPDLOG_DEBUG(
 						"CUDA: Executing map lookup for {}, key= {:x} result = {:x}",
@@ -333,10 +321,28 @@ namespace cuda
 {
 
 static std::atomic<uintptr_t> g_cuda_comm_shared_mem_device_ptr{ 0 };
+static std::atomic<uintptr_t> g_cuda_shm_host_base{ 0 };
+static std::atomic<uintptr_t> g_cuda_shm_device_base{ 0 };
+static std::atomic<uint64_t> g_cuda_shm_size{ 0 };
 
 uintptr_t get_cuda_shared_mem_device_pointer()
 {
 	return g_cuda_comm_shared_mem_device_ptr.load(std::memory_order_acquire);
+}
+
+uintptr_t get_cuda_shm_host_base()
+{
+	return g_cuda_shm_host_base.load(std::memory_order_acquire);
+}
+
+uintptr_t get_cuda_shm_device_base()
+{
+	return g_cuda_shm_device_base.load(std::memory_order_acquire);
+}
+
+uint64_t get_cuda_shm_size()
+{
+	return g_cuda_shm_size.load(std::memory_order_acquire);
 }
 
 void cuda_context_destroyer(CUcontext ptr)
@@ -390,6 +396,41 @@ CUDAContext::CUDAContext(cuda::CommSharedMem *mem)
 		reinterpret_cast<uintptr_t>(device_ptr);
 	g_cuda_comm_shared_mem_device_ptr.store(cuda_shared_mem_device_pointer,
 						std::memory_order_release);
+
+	// Publish the host<->device mapping for the whole shared-memory segment
+	// so the trampoline can translate host pointers returned by helpers.
+	{
+		void *segment_base =
+			shm_holder.global_shared_memory.get_segment_base();
+		size_t segment_size =
+			shm_holder.global_shared_memory.get_segment_size();
+		void *segment_device_ptr = nullptr;
+		if (segment_base != nullptr && segment_size > 0) {
+			auto base_err = cudaHostGetDevicePointer(
+				&segment_device_ptr, segment_base, 0);
+			if (base_err != cudaSuccess) {
+				SPDLOG_ERROR(
+					"cudaHostGetDevicePointer failed for SHM segment base: {}",
+					cudaGetErrorString(base_err));
+			} else {
+				g_cuda_shm_host_base.store(
+					reinterpret_cast<uintptr_t>(
+						segment_base),
+					std::memory_order_release);
+				g_cuda_shm_device_base.store(
+					reinterpret_cast<uintptr_t>(
+						segment_device_ptr),
+					std::memory_order_release);
+				g_cuda_shm_size.store(
+					static_cast<uint64_t>(segment_size),
+					std::memory_order_release);
+				SPDLOG_INFO(
+					"Shared memory segment host {:p} mapped to device {:p} (size={})",
+					segment_base, segment_device_ptr,
+					segment_size);
+			}
+		}
+	}
 	SPDLOG_INFO("CommSharedMem host {:p} mapped to device {:p}",
 		    (void *)cuda_shared_mem, device_ptr);
 }
