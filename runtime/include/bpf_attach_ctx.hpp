@@ -126,6 +126,10 @@ std::optional<std::unique_ptr<cuda::CUDAContext>> create_cuda_context();
 // Returns 0 if CUDA shared memory hasn't been initialized successfully.
 uintptr_t get_cuda_shared_mem_device_pointer();
 
+// Publish the CommSharedMem device pointer for other CUDA attach components
+// (e.g. nv_attach_impl). Safe to call multiple times; later calls overwrite.
+void set_cuda_shared_mem_device_pointer(uintptr_t ptr);
+
 } // namespace cuda
 #endif
 

@@ -24,6 +24,12 @@ if(${BPFTIME_LLVM_JIT})
   target_link_libraries(bpftime-syscall-server PUBLIC bpftime_llvm_vm)
 endif()
 
+if(${BPFTIME_ENABLE_CUDA_ATTACH})
+  # runtime and bpftime_nv_attach_impl have a cyclic dependency (CUDA comm shared mem ptr).
+  # Ensure link order resolves symbols correctly for the syscall-server preload.
+  target_link_libraries(bpftime-syscall-server PUBLIC bpftime_nv_attach_impl)
+endif()
+
 target_link_libraries(bpftime-syscall-server PUBLIC
     runtime
     -lpthread

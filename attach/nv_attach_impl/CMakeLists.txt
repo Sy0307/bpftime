@@ -23,6 +23,7 @@ message("PTX_COMPILER_SHARED_LIB=${PTX_COMPILER_SHARED_LIB}")
 add_library(
     bpftime_nv_attach_impl STATIC
     nv_attach_impl.cpp
+    cuda_shared_mem_device_pointer.cpp
     nv_attach_private_data.cpp
     nv_attach_impl_frida_setup.cpp
     nv_attach_impl_patcher.cpp

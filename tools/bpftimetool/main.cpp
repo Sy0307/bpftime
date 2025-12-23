@@ -21,6 +21,7 @@
 #include <time.h>
 #include <iostream>
 #include <chrono>
+#include <thread>
 #include <bpftime_logger.hpp>
 #ifdef BPFTIME_ENABLE_CUDA_ATTACH
 #include <nv_attach_impl.hpp>
@@ -290,10 +291,23 @@ int main(int argc, char *argv[])
 			});
 		ctx.init_attach_ctx_from_handlers(runtime_config);
 		if (auto impl = ctx.find_nv_attach_impl(); impl) {
-            if (auto id =
-                    (*impl)->find_attach_entry_by_program_name(
-                        argv[2]);
-                id != -1) {
+			int id = -1;
+			constexpr int max_wait_ms = 15000;
+			constexpr int step_ms = 200;
+			for (int waited_ms = 0; waited_ms <= max_wait_ms;
+			     waited_ms += step_ms) {
+				id = (*impl)->find_attach_entry_by_program_name(
+					argv[2]);
+				if (id != -1) {
+					break;
+				}
+				// Direct-run server may still be initializing / loading programs.
+				// Re-scan handlers and retry for a short while.
+				ctx.init_attach_ctx_from_handlers(runtime_config);
+				std::this_thread::sleep_for(
+					std::chrono::milliseconds(step_ms));
+			}
+			if (id != -1) {
                 int err = 0;
                 if (has_dims) {
                     err = (*impl)->run_attach_entry_on_gpu(

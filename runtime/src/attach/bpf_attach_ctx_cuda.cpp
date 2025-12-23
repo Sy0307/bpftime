@@ -194,14 +194,11 @@ void bpf_attach_ctx::start_cuda_watcher_thread()
 											device_comm_base) +
 										offset));
 						} else {
-							// Treat translation failure as "not found" so the eBPF
-							// program can fall back to map_update paths safely.
-							SPDLOG_WARN(
-								"MAP_LOOKUP returned pointer outside shared segment: ptr={:x} seg_base={:x} seg_end={:x}, returning nullptr",
-								host_ptr,
-								segment_base,
-								segment_end);
-							resp.value = nullptr;
+							// Some map implementations (e.g. GPU maps) return a CUDA
+							// device pointer directly. In that case, just pass it
+							// through as-is.
+							resp.value = const_cast<void *>(
+								ptr);
 						}
 					}
 					SPDLOG_DEBUG(
@@ -358,13 +355,6 @@ bpf_attach_ctx::create_map_basic_info(int filled_size)
 namespace cuda
 {
 
-static std::atomic<uintptr_t> g_cuda_comm_shared_mem_device_ptr{ 0 };
-
-uintptr_t get_cuda_shared_mem_device_pointer()
-{
-	return g_cuda_comm_shared_mem_device_ptr.load(std::memory_order_acquire);
-}
-
 void cuda_context_destroyer(CUcontext ptr)
 {
 	NV_SAFE_CALL(cuCtxDestroy(ptr), "destroy cuda context");
@@ -414,8 +404,7 @@ CUDAContext::CUDAContext(cuda::CommSharedMem *mem)
 	}
 	cuda_shared_mem_device_pointer =
 		reinterpret_cast<uintptr_t>(device_ptr);
-	g_cuda_comm_shared_mem_device_ptr.store(cuda_shared_mem_device_pointer,
-						std::memory_order_release);
+	set_cuda_shared_mem_device_pointer(cuda_shared_mem_device_pointer);
 	SPDLOG_INFO("CommSharedMem host {:p} mapped to device {:p}",
 		    (void *)cuda_shared_mem, device_ptr);
 }
