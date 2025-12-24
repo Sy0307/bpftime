@@ -24,6 +24,8 @@ int main()
 	int err;
 
 	libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
+	/* Ensure CI can grep output from redirected logs without waiting for exit. */
+	setvbuf(stdout, NULL, _IOLBF, 0);
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
 
@@ -51,6 +53,7 @@ int main()
 		int mapfd = bpf_map__fd(skel->maps.counter);
 		if (bpf_map_lookup_elem(mapfd, &key, &value) == 0) {
 			printf("counter[0]=%lu\n", (unsigned long)value);
+			fflush(stdout);
 		}
 		uint32_t *prev_key = NULL;
 		key = 0;
@@ -74,6 +77,7 @@ int main()
 				return err;
 			}
 			printf("	pid=%d     calls: %ld\n", key, value);
+			fflush(stdout);
 			prev_key = &key;
 		}
 		sleep(1);
