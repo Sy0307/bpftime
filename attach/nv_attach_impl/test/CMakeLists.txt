@@ -2,6 +2,7 @@ set(TEST_SOURCES
     nv_attach_impl_tests.cpp
     test_register_guard.cpp
     test_ptxpass.cpp
+    test_sass_detour_replay_reloc.cpp
     # test_kernel_finder.cpp
 )
 add_executable(bpftime_nv_attach_tests ${TEST_SOURCES})
@@ -27,6 +28,7 @@ if(${ENABLE_EBPF_VERIFIER} AND NOT TARGET Catch2)
 endif()
 
 add_dependencies(bpftime_nv_attach_tests Catch2 bpftime_nv_attach_impl ptxpass_core spdlog::spdlog)
+target_compile_definitions(bpftime_nv_attach_tests PRIVATE BPFTIME_SASS_DETOUR_TESTING=1)
 if(${TEST_LCOV})
     target_link_options(bpftime_nv_attach_tests PRIVATE -lgcov)
     target_link_libraries(bpftime_nv_attach_tests PRIVATE Catch2::Catch2WithMain bpftime_nv_attach_impl ptxpass_core spdlog::spdlog gcov cuda)

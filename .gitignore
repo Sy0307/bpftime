@@ -46,6 +46,8 @@ jitterbug
 
 __pycache__
 .cache
+.venv*/
+.venv-*/
 third_party/frida
 third_party/phaole
 third_party/phaole1
@@ -56,10 +58,14 @@ perf.data.old
 /wasm-micro-runtime
 benchmark-logs-error.txt
 
+# Benchmark build artifacts
+benchmark/**/.output/
+benchmark/gpu/vllm_threadscheduling/vllm_threadscheduling
+benchmark/gpu/host/gpu_array_map_host_perf
+
 # Embedded git repositories
 example/attach_implementation/benchmark/luajit_plugin/luajit-local/
 example/attach_implementation/benchmark/wasm-micro-runtime/
 
 build
 target
-

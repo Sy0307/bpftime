@@ -102,6 +102,39 @@ For debugging purposes, the code can:
 - Print detailed logs about the patching process
 - Show information about register usage and state
 
+### SASS (cubin-only) detour mode
+
+Some real-world workloads (e.g. PyTorch / vLLM wheels) may ship **cubin-only**
+fatbins with **no embedded PTX**, which makes PTX rewriting insufficient.
+
+bpftime now has an experimental **SASS-level detour** capability that rewrites
+kernel/device function entry at the CUBIN ELF level (SM120 only currently). This
+validates that CUBIN-only binaries are patchable and can optionally run a tiny
+SASS sampler inside kernels (for SM/CTA-level observability).
+
+Environment variables:
+
+- `BPFTIME_CUDA_SASS_DETOUR=1`: enable detours in `cuLibraryLoadData`
+- `BPFTIME_CUDA_SASS_DETOUR_FILTER=<substr>`: only patch `.text.*` sections whose name contains `<substr>`
+- `BPFTIME_CUDA_SASS_DETOUR_FILTER_FUNC_IDS=<u32[,u32...]>`: additionally patch `.text.*` sections whose `sh_info(func_id)` matches (useful when section names are stripped/anonymized)
+- `BPFTIME_CUDA_SASS_DETOUR_FUNC_ID_CACHE_PATH=/tmp/bpftime-sass-funcid-cache.json`: persist auto-learned `func_id` sets keyed by `BPFTIME_CUDA_SASS_DETOUR_FILTER` (enables “kernel name → func_id” closure across runs for stripped cubins)
+- `BPFTIME_CUDA_SASS_DETOUR_DEBUG=1`: log detected `code` formats and when patching succeeds
+- `BPFTIME_CUDA_SASS_DETOUR_DUMP_DIR=/path`: dump patched CUBIN images for inspection
+
+SASS sampling (SM120-only, experimental):
+
+- `BPFTIME_CUDA_SASS_SAMPLE=1`: enable sampler stubs in detoured kernels
+- `BPFTIME_CUDA_SASS_SAMPLE_MODE=smid_bitmap|cta|records|warp|thread`
+  - `smid_bitmap`: mark `bitmap[smid]=1`
+  - `cta` / `records`: CTA→SMID map `out[ctaid.x]=smid_raw` (buffer initialized to `0xffffffff`)
+  - `warp`: per-warp slots `slots[(ctaid.x*32)+warp_id]=smid_lo8`
+  - `thread`: host-expanded per-thread records from per-warp slots (`tid_x=warp_id*32+lane_id`)
+- `BPFTIME_CUDA_SASS_SAMPLE_MAX_RECORDS=<N>`: capacity for CTA-indexed tracking (rounded down to power-of-two)
+- `BPFTIME_CUDA_SASS_SAMPLE_DESC_UR=<even>`: UR base register pair used by the sampler stub (default: 62)
+- `BPFTIME_CUDA_SASS_SAMPLE_DUMP_PATH=/tmp/bpftime-sass-samples.jsonl`: dump JSONL on exit/sync (supports `%p` => pid)
+- `BPFTIME_CUDA_SASS_SAMPLE_DUMP_ON_SYNC=1`: dump once on the first `cuCtxSynchronize/cuStreamSynchronize`
+- `BPFTIME_CUDA_STANDALONE=1`: if bpftime shared memory is unavailable, keep CUDA hooks enabled anyway (no eBPF execution; tracing/detour only)
+
 ## Limitations
 
 - Currently only supports specific CUDA version formats

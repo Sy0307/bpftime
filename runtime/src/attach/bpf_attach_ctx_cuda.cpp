@@ -105,8 +105,25 @@ bpf_attach_ctx::find_nv_attach_impl() const
 	}
 	return {};
 }
+
+int bpf_attach_ctx::ensure_cuda_ctx()
+{
+	if (cuda_ctx)
+		return 0;
+	auto opt = cuda::create_cuda_context();
+	if (!opt) {
+		SPDLOG_ERROR(
+			"Failed to create CUDAContext (shared CUDA comm memory not available)");
+		return -1;
+	}
+	cuda_ctx = std::move(*opt);
+	start_cuda_watcher_thread();
+	return 0;
+}
 void bpf_attach_ctx::start_cuda_watcher_thread()
 {
+	if (!cuda_ctx)
+		return;
 	if (cuda_watcher_thread.joinable())
 		return;
 	auto flag = cuda_ctx->cuda_watcher_should_stop;

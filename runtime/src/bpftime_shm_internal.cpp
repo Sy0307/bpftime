@@ -69,15 +69,20 @@ extern "C" void bpftime_remove_global_shm()
 
 static __attribute__((destructor(65535))) void __destruct_shm()
 {
-	// This usually indicates that the living shared memory object is used
-	// by an agent instance
-	if (bpftime::shm_holder.global_shared_memory.get_open_type() ==
-	    bpftime::shm_open_type::SHM_OPEN_ONLY) {
-		// Try our best to remove the current pid from alive agent's set
-		int self_pid = getpid();
-		// It doesn't matter if the current pid is not in the set
-		bpftime::shm_holder.global_shared_memory
-			.remove_pid_from_alive_agent_set(self_pid);
+	// Only touch the global shared memory object if it was successfully
+	// constructed via `bpftime_initialize_global_shm()`. Agents may choose to
+	// continue in CUDA-standalone mode without shared memory.
+	if (global_shm_initialized) {
+		// This usually indicates that the living shared memory object is used
+		// by an agent instance
+		if (bpftime::shm_holder.global_shared_memory.get_open_type() ==
+		    bpftime::shm_open_type::SHM_OPEN_ONLY) {
+			// Try our best to remove the current pid from alive agent's set
+			int self_pid = getpid();
+			// It doesn't matter if the current pid is not in the set
+			bpftime::shm_holder.global_shared_memory
+				.remove_pid_from_alive_agent_set(self_pid);
+		}
 	}
 
 	bpftime_destroy_global_shm();
@@ -635,7 +640,23 @@ bpftime_shm::bpftime_shm(const char *shm_name, shm_open_type type)
 		segment = boost::interprocess::managed_shared_memory(
 			boost::interprocess::open_only, shm_name);
 #ifdef BPFTIME_ENABLE_CUDA_ATTACH
-		register_cuda_host_memory();
+		// Registering the entire shared memory region with CUDA (cudaHostRegister)
+		// can implicitly initialize CUDA in the current process. For CUDA
+		// "trace-only" use-cases (e.g., cuLaunchKernel tracing in vLLM),
+		// initializing CUDA before the app spawns worker processes can break
+		// CUDA initialization in children (fork/spawn behavior).
+		//
+		// Skip this when BPFTIME_CUDA_LAUNCH_TRACE_PATH is set, or when the
+		// user explicitly disables it.
+			const bool sass_enabled =
+				(std::getenv("BPFTIME_CUDA_SASS_DETOUR") != nullptr) ||
+				(std::getenv("BPFTIME_CUDA_SASS_SAMPLE_MODE") != nullptr);
+			if (!sass_enabled &&
+			    std::getenv("BPFTIME_CUDA_LAUNCH_TRACE_PATH") == nullptr &&
+			    std::getenv("BPFTIME_CUDA_TRACE_PATH") == nullptr &&
+			    std::getenv("BPFTIME_SKIP_CUDA_HOST_REGISTER") == nullptr) {
+				register_cuda_host_memory();
+			}
 #endif
 		manager = segment.find<bpftime::handler_manager>(
 					 bpftime::DEFAULT_GLOBAL_HANDLER_NAME)
@@ -1018,6 +1039,7 @@ bpftime::bpftime_shm::~bpftime_shm()
 		// shutdown
 		if (err == cudaErrorCudartUnloading ||
 		    err == cudaErrorInvalidValue ||
+		    err == cudaErrorHostMemoryNotRegistered ||
 		    err == cudaErrorInsufficientDriver) {
 			return;
 		}

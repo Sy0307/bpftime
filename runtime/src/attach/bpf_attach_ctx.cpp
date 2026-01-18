@@ -109,23 +109,19 @@ bpf_attach_ctx::~bpf_attach_ctx()
 {
 	SPDLOG_INFO("Destructor: bpf_attach_ctx");
 #ifdef BPFTIME_ENABLE_CUDA_ATTACH
-	cuda_ctx->cuda_watcher_should_stop->store(true);
-	if (cuda_watcher_thread.joinable())
-		cuda_watcher_thread.join();
+	if (cuda_ctx) {
+		cuda_ctx->cuda_watcher_should_stop->store(true);
+		if (cuda_watcher_thread.joinable())
+			cuda_watcher_thread.join();
+	}
 #endif
 }
 
 // create a probe context
 bpf_attach_ctx::bpf_attach_ctx()
-#ifdef BPFTIME_ENABLE_CUDA_ATTACH
-	: cuda_ctx(*cuda::create_cuda_context())
-#endif
 {
 	current_id = CURRENT_ID_OFFSET;
 	SPDLOG_INFO("bpf_attach_ctx constructed");
-#ifdef BPFTIME_ENABLE_CUDA_ATTACH
-	start_cuda_watcher_thread();
-#endif
 }
 
 int bpf_attach_ctx::instantiate_handler_at(const handler_manager *manager,
@@ -276,6 +272,11 @@ int bpf_attach_ctx::instantiate_bpf_link_handler_at(
 			"Instantiating bpf link {} and the corresponding program {} is cuda program",
 			id, prog->prog_name());
 		if (handle_nv_attach_impl) {
+			if (ensure_cuda_ctx() < 0) {
+				SPDLOG_ERROR(
+					"Unable to initialize CUDA context required by CUDA attach");
+				return -1;
+			}
 			SPDLOG_INFO(
 				"Handling link to CUDA program: {}, recording it..",
 				id);

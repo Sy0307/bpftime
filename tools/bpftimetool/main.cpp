@@ -26,6 +26,9 @@
 #ifdef BPFTIME_ENABLE_CUDA_ATTACH
 #include <nv_attach_impl.hpp>
 #include <nv_attach_private_data.hpp>
+#include <nv_attach_utils.hpp>
+#include "sass_map/sass_map.hpp"
+#include "json.hpp"
 #endif
 using namespace std;
 using namespace bpftime;
@@ -135,7 +138,7 @@ int main(int argc, char *argv[])
 	if (argc == 1) {
 #if defined(BPFTIME_ENABLE_CUDA_ATTACH)
 		cerr << "Usage: " << argv[0]
-		     << " [load|import|export|remove|run|run-on-cuda] ..."
+		     << " [load|import|export|remove|run|run-on-cuda|dump-sassmap] ..."
 		     << endl
 		     << "Command-line tool to inspect and manage userspace eBPF objects"
 		     << endl;
@@ -316,10 +319,63 @@ int main(int argc, char *argv[])
 			SPDLOG_ERROR("nv_attach_impl not found!");
 			return 1;
 		}
-	#endif
-	else {
-		cerr << "Invalid subcommand " << cmd << endl;
-		return 1;
-	}
+		else if (cmd == "dump-sassmap") {
+			if (argc != 3) {
+				cerr << "Usage: " << argv[0]
+				     << " dump-sassmap <cubin_or_elf_path>"
+				     << endl;
+				return 1;
+			}
+			const std::filesystem::path path(argv[2]);
+			std::ifstream ifs(path, std::ios::binary | std::ios::ate);
+			if (!ifs.is_open()) {
+				cerr << "Unable to open file: " << path << endl;
+				return 1;
+			}
+			const auto size = ifs.tellg();
+			if (size <= 0) {
+				cerr << "Empty file: " << path << endl;
+				return 1;
+			}
+			std::vector<uint8_t> bytes((size_t)size);
+			ifs.seekg(0, std::ios::beg);
+			if (!ifs.read((char *)bytes.data(), size)) {
+				cerr << "Unable to read file: " << path << endl;
+				return 1;
+			}
+
+			auto table =
+				bpftime::attach::sass_map::parse_elf_debug_line(
+					std::span<const uint8_t>(
+						bytes.data(), bytes.size()));
+
+			nlohmann::json j;
+			j["path"] = path.string();
+			j["elf_sha256"] =
+				bpftime::attach::sha256(bytes.data(), bytes.size());
+			j["has_debug_line"] = table.has_value();
+			j["entry_count"] =
+				table ? table->entries.size() : 0;
+			if (table) {
+				auto &arr =
+					j["entries"] = nlohmann::json::array();
+				for (const auto &e : table->entries) {
+					nlohmann::json item;
+					item["address"] = e.address;
+					item["file"] = e.loc.file;
+					item["line"] = e.loc.line;
+					item["column"] = e.loc.column;
+					item["is_stmt"] = e.loc.is_stmt;
+					arr.push_back(std::move(item));
+				}
+			}
+			std::cout << j.dump(2) << std::endl;
+			return 0;
+		}
+		#endif
+		else {
+			cerr << "Invalid subcommand " << cmd << endl;
+			return 1;
+		}
 	return EXIT_SUCCESS;
 }

@@ -248,6 +248,27 @@ int main(int argc, char **argv)
 {
 	struct threadscheduling_bpf *skel;
 	int err;
+	const char *override_func = NULL;
+	struct bpf_link *override_link = NULL;
+
+	for (int i = 1; i < argc; i++) {
+		if ((strcmp(argv[i], "--func") == 0 ||
+		     strcmp(argv[i], "--kernel") == 0) &&
+		    i + 1 < argc) {
+			override_func = argv[i + 1];
+			i++;
+			continue;
+		}
+		if (strcmp(argv[i], "-h") == 0 ||
+		    strcmp(argv[i], "--help") == 0) {
+			printf("Usage: %s [--func <cuda_kernel_symbol>]\n",
+			       argv[0]);
+			printf("\n");
+			printf("  --func/--kernel: Attach to a specific CUDA kernel symbol name\n");
+			printf("                 (default: uses the name embedded in the BPF section)\n");
+			return 0;
+		}
+	}
 
 	/* Set up libbpf errors and debug info callback */
 	libbpf_set_print(libbpf_print_fn);
@@ -270,13 +291,27 @@ int main(int argc, char **argv)
 		goto cleanup;
 	}
 
-	err = threadscheduling_bpf__attach(skel);
-	if (err) {
-		fprintf(stderr, "Failed to attach BPF skeleton\n");
-		goto cleanup;
+	if (override_func && override_func[0] != '\0') {
+		override_link = bpf_program__attach_kprobe(
+			skel->progs.cuda__probe_threadscheduling, false,
+			override_func);
+		if (!override_link) {
+			err = -errno;
+			fprintf(stderr,
+				"Failed to attach kprobe to CUDA kernel '%s': %s\n",
+				override_func, strerror(errno));
+			goto cleanup;
+		}
+		printf("SM/Warp/Lane mapping probe started. Attached to CUDA kernel: %s\n",
+		       override_func);
+	} else {
+		err = threadscheduling_bpf__attach(skel);
+		if (err) {
+			fprintf(stderr, "Failed to attach BPF skeleton\n");
+			goto cleanup;
+		}
+		printf("SM/Warp/Lane mapping probe started. Waiting for CUDA kernel executions...\n");
 	}
-
-	printf("SM/Warp/Lane mapping probe started. Waiting for CUDA kernel executions...\n");
 
 	while (!exiting) {
 		sleep(2);
@@ -284,6 +319,8 @@ int main(int argc, char **argv)
 	}
 
 cleanup:
+	if (override_link)
+		bpf_link__destroy(override_link);
 	/* Clean up */
 	threadscheduling_bpf__destroy(skel);
 

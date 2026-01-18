@@ -79,6 +79,37 @@ syscall_hooker_func_t orig_hooker;
 
 extern "C" void bpftime_agent_main(const gchar *data, gboolean *stay_resident);
 
+#ifdef BPFTIME_ENABLE_CUDA_ATTACH
+static std::unique_ptr<bpftime::attach::nv_attach_impl> cuda_standalone_nv_attach;
+static bool want_cuda_standalone_mode()
+{
+	auto truthy = [](const char *k) -> bool {
+		if (const char *v = std::getenv(k); v && *v) {
+			std::string s(v);
+			std::transform(s.begin(), s.end(), s.begin(),
+				       [](unsigned char c) {
+					       return (char)std::tolower(c);
+				       });
+			return s == "1" || s == "true" || s == "yes" || s == "y" ||
+			       s == "on";
+		}
+		return false;
+	};
+	// Explicit enable.
+	if (truthy("BPFTIME_CUDA_STANDALONE"))
+		return true;
+	// Implicit: if any CUDA tracing / detour features are enabled, we can still
+	// proceed without bpftime shared memory (no eBPF execution, only hooks).
+	if (truthy("BPFTIME_CUDA_SASS_DETOUR") || truthy("BPFTIME_CUDA_SASS_SAMPLE"))
+		return true;
+	if (const char *p = std::getenv("BPFTIME_CUDA_TRACE_PATH"); p && *p)
+		return true;
+	if (const char *p = std::getenv("BPFTIME_CUDA_LAUNCH_TRACE_PATH"); p && *p)
+		return true;
+	return false;
+}
+#endif
+
 extern "C" int bpftime_hooked_main(int argc, char **argv, char **envp)
 {
 	int stay_resident = 0;
@@ -157,17 +188,79 @@ extern "C" void bpftime_agent_main(const gchar *data, gboolean *stay_resident)
 	srand(std::random_device()());
 	// We use SIGUSR1 to indicate the detaching
 	signal(SIGUSR1, sig_handler_sigusr1_detach);
+	const bool allow_no_shm =
+		(std::getenv("BPFTIME_ALLOW_NO_SHM") != nullptr);
 	try {
 		// If we are unable to initialize shared memory..
 		bpftime_initialize_global_shm(shm_open_type::SHM_OPEN_ONLY);
 	} catch (std::exception &ex) {
-		SPDLOG_ERROR("Unable to initialize shared memory: {}",
-			     ex.what());
-		return;
+		// If shared memory isn't available, we can still proceed in a
+		// CUDA-standalone mode (no eBPF execution, only hooks/tracing).
+#ifdef BPFTIME_ENABLE_CUDA_ATTACH
+		if (!allow_no_shm && want_cuda_standalone_mode()) {
+			const char *log_output = std::getenv("BPFTIME_LOG_OUTPUT");
+			bpftime_set_logger(log_output ? log_output : "console");
+			SPDLOG_WARN(
+				"Shared memory is unavailable ({}); continue in CUDA-standalone mode (no eBPF execution)",
+				ex.what());
+			try {
+				if (!cuda_standalone_nv_attach)
+					cuda_standalone_nv_attach =
+						std::make_unique<bpftime::attach::nv_attach_impl>();
+			} catch (std::exception &ex3) {
+				SPDLOG_ERROR(
+					"Failed to initialize CUDA standalone nv_attach_impl: {}",
+					ex3.what());
+				return;
+			}
+			*stay_resident = TRUE;
+			setenv("BPFTIME_USED", "1", 0);
+			return;
+		}
+#endif
+		if (!allow_no_shm) {
+			SPDLOG_ERROR("Unable to initialize shared memory: {}",
+				     ex.what());
+			return;
+		}
+		SPDLOG_WARN(
+			"Unable to initialize shared memory ({}); creating a standalone segment because BPFTIME_ALLOW_NO_SHM=1",
+			ex.what());
+		try {
+			bpftime_initialize_global_shm(
+				shm_open_type::SHM_REMOVE_AND_CREATE);
+		} catch (std::exception &ex2) {
+#ifdef BPFTIME_ENABLE_CUDA_ATTACH
+			if (want_cuda_standalone_mode()) {
+				const char *log_output =
+					std::getenv("BPFTIME_LOG_OUTPUT");
+				bpftime_set_logger(log_output ? log_output : "console");
+				SPDLOG_WARN(
+					"Shared memory is unavailable ({}); continue in CUDA-standalone mode (no eBPF execution)",
+					ex2.what());
+				try {
+					if (!cuda_standalone_nv_attach)
+						cuda_standalone_nv_attach =
+							std::make_unique<bpftime::attach::nv_attach_impl>();
+				} catch (std::exception &ex3) {
+					SPDLOG_ERROR(
+						"Failed to initialize CUDA standalone nv_attach_impl: {}",
+						ex3.what());
+					return;
+				}
+				*stay_resident = TRUE;
+				setenv("BPFTIME_USED", "1", 0);
+				return;
+			}
+#endif
+			SPDLOG_ERROR(
+				"Unable to create standalone shared memory segment: {}",
+				ex2.what());
+			return;
+		}
 	}
-	auto &runtime_config = bpftime_get_agent_config();
-	bpftime_set_logger(
-		std::string(runtime_config.get_logger_output_path()));
+	const auto &runtime_config = bpftime_get_agent_config();
+	bpftime_set_logger(std::string(runtime_config.get_logger_output_path()));
 	// Only agents injected through frida could be detached
 	if (injected_with_frida) {
 		// Record the pid

@@ -34,6 +34,9 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <sstream>
+#include <span>
+#include <sys/uio.h>
 #include <set>
 #include <regex>
 #include <sstream>
@@ -46,6 +49,7 @@
 #include <sys/uio.h>
 #include <link.h>
 #include <tuple>
+#include <time.h>
 #include <unistd.h>
 #include <variant>
 #include <vector>
@@ -196,6 +200,123 @@ cudaError_t cuda_runtime_function__cudaMemcpyFromSymbol(
 cudaError_t cuda_runtime_function__cudaMemcpyFromSymbolAsync(
 	void *dst, const void *symbol, size_t count, size_t offset,
 	cudaMemcpyKind kind, cudaStream_t stream = 0);
+
+CUresult cuda_driver_function__cuModuleGetFunction(CUfunction *hfunc,
+						   CUmodule hmod,
+						   const char *name);
+CUresult cuda_driver_function__cuLaunchKernel(
+	CUfunction f, unsigned int gridDimX, unsigned int gridDimY,
+	unsigned int gridDimZ, unsigned int blockDimX, unsigned int blockDimY,
+	unsigned int blockDimZ, unsigned int sharedMemBytes, CUstream hStream,
+	void **kernelParams, void **extra);
+
+CUresult cuda_driver_function__cuMemcpyHtoD_v2(CUdeviceptr dstDevice,
+					       const void *srcHost,
+					       size_t ByteCount);
+CUresult cuda_driver_function__cuMemcpyHtoDAsync_v2(CUdeviceptr dstDevice,
+						    const void *srcHost,
+						    size_t ByteCount,
+						    CUstream hStream);
+CUresult cuda_driver_function__cuMemcpyDtoH_v2(void *dstHost,
+					       CUdeviceptr srcDevice,
+					       size_t ByteCount);
+CUresult cuda_driver_function__cuMemcpyDtoHAsync_v2(void *dstHost,
+						    CUdeviceptr srcDevice,
+						    size_t ByteCount,
+						    CUstream hStream);
+CUresult cuda_driver_function__cuMemcpyDtoD_v2(CUdeviceptr dstDevice,
+					       CUdeviceptr srcDevice,
+					       size_t ByteCount);
+CUresult cuda_driver_function__cuMemcpyDtoDAsync_v2(CUdeviceptr dstDevice,
+						    CUdeviceptr srcDevice,
+						    size_t ByteCount,
+						    CUstream hStream);
+CUresult cuda_driver_function__cuMemsetD8Async(CUdeviceptr dstDevice,
+					       unsigned char uc,
+					       size_t N, CUstream hStream);
+CUresult cuda_driver_function__cuMemsetD32Async(CUdeviceptr dstDevice,
+						unsigned int ui, size_t N,
+						CUstream hStream);
+CUresult cuda_driver_function__cuMemAlloc_v2(CUdeviceptr *dptr,
+					     size_t bytesize);
+CUresult cuda_driver_function__cuMemFree_v2(CUdeviceptr dptr);
+CUresult cuda_driver_function__cuMemAllocAsync(CUdeviceptr *dptr,
+					       size_t bytesize,
+					       CUstream hStream);
+CUresult cuda_driver_function__cuMemFreeAsync(CUdeviceptr dptr,
+					      CUstream hStream);
+CUresult cuda_driver_function__cuStreamSynchronize(CUstream hStream);
+CUresult cuda_driver_function__cuCtxSynchronize();
+CUresult cuda_driver_function__cuCtxDestroy(CUcontext ctx);
+CUresult cuda_driver_function__cuCtxDestroy_v2(CUcontext ctx);
+CUresult cuda_driver_function__cuDevicePrimaryCtxRelease(CUdevice dev);
+CUresult cuda_driver_function__cuDevicePrimaryCtxRelease_v2(CUdevice dev);
+CUresult cuda_driver_function__cuEventRecord(CUevent hEvent, CUstream hStream);
+CUresult cuda_driver_function__cuEventSynchronize(CUevent hEvent);
+	CUresult cuda_driver_function__cuGraphLaunch(CUgraphExec hGraphExec,
+						     CUstream hStream);
+	CUresult cuda_driver_function__cuLinkAddData(CUlinkState state,
+						     CUjitInputType type,
+						     void *data, size_t size,
+						     const char *name,
+						     unsigned int numOptions,
+						     CUjit_option *options,
+						     void **optionValues);
+	CUresult cuda_driver_function__cuLinkAddData_v2(CUlinkState state,
+							CUjitInputType type,
+							void *data, size_t size,
+							const char *name,
+							unsigned int numOptions,
+							CUjit_option *options,
+							void **optionValues);
+	CUresult cuda_driver_function__cuLinkComplete(CUlinkState state,
+						      void **cubinOut,
+						      size_t *sizeOut);
+	CUresult cuda_driver_function__cuLinkDestroy(CUlinkState state);
+	CUresult cuda_driver_function__cuStreamCreate(CUstream *phStream,
+						      unsigned int Flags);
+	CUresult cuda_driver_function__cuStreamCreateWithPriority(CUstream *phStream,
+								  unsigned int Flags,
+								  int priority);
+CUresult cuda_driver_function__cuStreamDestroy_v2(CUstream hStream);
+CUresult cuda_driver_function__cuStreamWaitEvent(CUstream hStream,
+						 CUevent hEvent,
+						 unsigned int Flags);
+CUresult cuda_driver_function__cuEventCreate(CUevent *phEvent,
+					     unsigned int Flags);
+CUresult cuda_driver_function__cuEventDestroy_v2(CUevent hEvent);
+CUresult cuda_driver_function__cuModuleLoadData(CUmodule *module,
+						const void *image);
+	CUresult cuda_driver_function__cuModuleLoadDataEx(CUmodule *module,
+							  const void *image,
+							  unsigned int numOptions,
+							  CUjit_option *options,
+							  void **optionValues);
+CUresult cuda_driver_function__cuModuleLoadFatBinary(CUmodule *module,
+						     const void *fatCubin);
+	CUresult cuda_driver_function__cuModuleLoad(CUmodule *module,
+						    const char *fname);
+	CUresult cuda_driver_function__cuModuleUnload(CUmodule hmod);
+CUresult cuda_driver_function__cuLibraryLoadData(
+	CUlibrary *library, const void *code, CUjit_option *jitOptions,
+	void **jitOptionsValues, unsigned int numJitOptions,
+	CUlibraryOption *libraryOptions, void **libraryOptionValues,
+	unsigned int numLibraryOptions);
+CUresult cuda_driver_function__cuLibraryLoadFromFile(
+	CUlibrary *library, const char *fileName, CUjit_option *jitOptions,
+	void **jitOptionsValues, unsigned int numJitOptions,
+	CUlibraryOption *libraryOptions, void **libraryOptionValues,
+	unsigned int numLibraryOptions);
+CUresult cuda_driver_function__cuLibraryUnload(CUlibrary library);
+CUresult cuda_driver_function__cuLibraryGetModule(CUmodule *pMod,
+						  CUlibrary library);
+CUresult cuda_driver_function__cuLibraryGetKernel(CUkernel *pKernel,
+						  CUlibrary library,
+						  const char *name);
+CUresult cuda_driver_function__cuKernelGetName(const char **name,
+					       CUkernel hfunc);
+CUresult cuda_driver_function__cuKernelGetFunction(CUfunction *pFunc,
+						   CUkernel kernel);
 }
 
 nv_attach_impl::nv_attach_impl()
@@ -367,7 +488,161 @@ nv_attach_impl::nv_attach_impl()
 		"cudaMemcpyFromSymbolAsync",
 		(gpointer)&cuda_runtime_function__cudaMemcpyFromSymbolAsync,
 		&this->original_cuda_memcpy_from_symbol_async);
+	replace_hook("cuModuleGetFunction",
+		     (gpointer)&cuda_driver_function__cuModuleGetFunction,
+		     &this->original_cu_module_get_function);
+	replace_hook("cuLaunchKernel",
+		     (gpointer)&cuda_driver_function__cuLaunchKernel,
+		     &this->original_cu_launch_kernel);
+	replace_hook("cuMemcpyHtoD_v2",
+		     (gpointer)&cuda_driver_function__cuMemcpyHtoD_v2,
+		     &this->original_cu_memcpy_htod);
+	replace_hook("cuMemcpyHtoDAsync_v2",
+		     (gpointer)&cuda_driver_function__cuMemcpyHtoDAsync_v2,
+		     &this->original_cu_memcpy_htod_async);
+	replace_hook("cuMemcpyDtoH_v2",
+		     (gpointer)&cuda_driver_function__cuMemcpyDtoH_v2,
+		     &this->original_cu_memcpy_dtoh);
+	replace_hook("cuMemcpyDtoHAsync_v2",
+		     (gpointer)&cuda_driver_function__cuMemcpyDtoHAsync_v2,
+		     &this->original_cu_memcpy_dtoh_async);
+	replace_hook("cuMemcpyDtoD_v2",
+		     (gpointer)&cuda_driver_function__cuMemcpyDtoD_v2,
+		     &this->original_cu_memcpy_dtod);
+	replace_hook("cuMemcpyDtoDAsync_v2",
+		     (gpointer)&cuda_driver_function__cuMemcpyDtoDAsync_v2,
+		     &this->original_cu_memcpy_dtod_async);
+	replace_hook("cuMemsetD8Async",
+		     (gpointer)&cuda_driver_function__cuMemsetD8Async,
+		     &this->original_cu_memset_d8_async);
+	replace_hook("cuMemsetD32Async",
+		     (gpointer)&cuda_driver_function__cuMemsetD32Async,
+		     &this->original_cu_memset_d32_async);
+	replace_hook("cuMemAlloc_v2",
+		     (gpointer)&cuda_driver_function__cuMemAlloc_v2,
+		     &this->original_cu_mem_alloc);
+	replace_hook("cuMemFree_v2",
+		     (gpointer)&cuda_driver_function__cuMemFree_v2,
+		     &this->original_cu_mem_free);
+	replace_hook("cuMemAllocAsync",
+		     (gpointer)&cuda_driver_function__cuMemAllocAsync,
+		     &this->original_cu_mem_alloc_async);
+	replace_hook("cuMemFreeAsync",
+		     (gpointer)&cuda_driver_function__cuMemFreeAsync,
+		     &this->original_cu_mem_free_async);
+	replace_hook("cuStreamSynchronize",
+		     (gpointer)&cuda_driver_function__cuStreamSynchronize,
+		     &this->original_cu_stream_synchronize);
+	replace_hook("cuCtxSynchronize",
+		     (gpointer)&cuda_driver_function__cuCtxSynchronize,
+		     &this->original_cu_ctx_synchronize);
+	replace_hook("cuCtxDestroy",
+		     (gpointer)&cuda_driver_function__cuCtxDestroy,
+		     &this->original_cu_ctx_destroy);
+	replace_hook("cuCtxDestroy_v2",
+		     (gpointer)&cuda_driver_function__cuCtxDestroy_v2,
+		     &this->original_cu_ctx_destroy_v2);
+	replace_hook("cuDevicePrimaryCtxRelease",
+		     (gpointer)&cuda_driver_function__cuDevicePrimaryCtxRelease,
+		     &this->original_cu_device_primary_ctx_release);
+	replace_hook("cuDevicePrimaryCtxRelease_v2",
+		     (gpointer)&cuda_driver_function__cuDevicePrimaryCtxRelease_v2,
+		     &this->original_cu_device_primary_ctx_release_v2);
+	replace_hook("cuEventRecord",
+		     (gpointer)&cuda_driver_function__cuEventRecord,
+		     &this->original_cu_event_record);
+	replace_hook("cuEventSynchronize",
+		     (gpointer)&cuda_driver_function__cuEventSynchronize,
+		     &this->original_cu_event_synchronize);
+		replace_hook("cuGraphLaunch",
+			     (gpointer)&cuda_driver_function__cuGraphLaunch,
+			     &this->original_cu_graph_launch);
+		replace_hook("cuLinkAddData",
+			     (gpointer)&cuda_driver_function__cuLinkAddData,
+			     &this->original_cu_link_add_data);
+		replace_hook("cuLinkAddData_v2",
+			     (gpointer)&cuda_driver_function__cuLinkAddData_v2,
+			     &this->original_cu_link_add_data_v2);
+		replace_hook("cuLinkComplete",
+			     (gpointer)&cuda_driver_function__cuLinkComplete,
+			     &this->original_cu_link_complete);
+		replace_hook("cuLinkDestroy",
+			     (gpointer)&cuda_driver_function__cuLinkDestroy,
+			     &this->original_cu_link_destroy);
+		replace_hook("cuStreamCreate",
+			     (gpointer)&cuda_driver_function__cuStreamCreate,
+			     &this->original_cu_stream_create);
+	replace_hook("cuStreamCreateWithPriority",
+		     (gpointer)&cuda_driver_function__cuStreamCreateWithPriority,
+		     &this->original_cu_stream_create_with_priority);
+	replace_hook("cuStreamDestroy_v2",
+		     (gpointer)&cuda_driver_function__cuStreamDestroy_v2,
+		     &this->original_cu_stream_destroy_v2);
+	replace_hook("cuStreamWaitEvent",
+		     (gpointer)&cuda_driver_function__cuStreamWaitEvent,
+		     &this->original_cu_stream_wait_event);
+	replace_hook("cuEventCreate",
+		     (gpointer)&cuda_driver_function__cuEventCreate,
+		     &this->original_cu_event_create);
+	replace_hook("cuEventDestroy_v2",
+		     (gpointer)&cuda_driver_function__cuEventDestroy_v2,
+		     &this->original_cu_event_destroy_v2);
+	replace_hook("cuModuleLoadData",
+		     (gpointer)&cuda_driver_function__cuModuleLoadData,
+		     &this->original_cu_module_load_data);
+		replace_hook("cuModuleLoadDataEx",
+			     (gpointer)&cuda_driver_function__cuModuleLoadDataEx,
+			     &this->original_cu_module_load_data_ex);
+	replace_hook("cuModuleLoadFatBinary",
+		     (gpointer)&cuda_driver_function__cuModuleLoadFatBinary,
+		     &this->original_cu_module_load_fatbinary);
+		replace_hook("cuModuleLoad",
+			     (gpointer)&cuda_driver_function__cuModuleLoad,
+			     &this->original_cu_module_load);
+		replace_hook("cuModuleUnload",
+			     (gpointer)&cuda_driver_function__cuModuleUnload,
+			     &this->original_cu_module_unload);
+	replace_hook("cuLibraryLoadData",
+		     (gpointer)&cuda_driver_function__cuLibraryLoadData,
+		     &this->original_cu_library_load_data);
+	replace_hook("cuLibraryLoadFromFile",
+		     (gpointer)&cuda_driver_function__cuLibraryLoadFromFile,
+		     &this->original_cu_library_load_from_file);
+	replace_hook("cuLibraryUnload",
+		     (gpointer)&cuda_driver_function__cuLibraryUnload,
+		     &this->original_cu_library_unload);
+	replace_hook("cuLibraryGetModule",
+		     (gpointer)&cuda_driver_function__cuLibraryGetModule,
+		     &this->original_cu_library_get_module);
+	replace_hook("cuLibraryGetKernel",
+		     (gpointer)&cuda_driver_function__cuLibraryGetKernel,
+		     &this->original_cu_library_get_kernel);
+	replace_hook("cuKernelGetName",
+		     (gpointer)&cuda_driver_function__cuKernelGetName,
+		     &this->original_cu_kernel_get_name);
+	replace_hook("cuKernelGetFunction",
+		     (gpointer)&cuda_driver_function__cuKernelGetFunction,
+		     &this->original_cu_kernel_get_function);
 	gum_interceptor_end_transaction(interceptor);
+
+	const char *path = std::getenv("BPFTIME_CUDA_TRACE_PATH");
+	if (path == nullptr || path[0] == '\0')
+		path = std::getenv("BPFTIME_CUDA_LAUNCH_TRACE_PATH");
+	if (path != nullptr && path[0] != '\0') {
+		this->cuda_launch_trace_path = path;
+		this->cuda_launch_trace_ofs.open(
+			this->cuda_launch_trace_path,
+			std::ios::out | std::ios::app);
+		if (this->cuda_launch_trace_ofs.good()) {
+			this->cuda_launch_trace_enabled = true;
+			SPDLOG_INFO("CUDA tracing enabled at {}",
+				    this->cuda_launch_trace_path);
+		} else {
+			SPDLOG_ERROR(
+				"Failed to open BPFTIME_CUDA_TRACE_PATH/BPFTIME_CUDA_LAUNCH_TRACE_PATH={}",
+				this->cuda_launch_trace_path);
+		}
+	}
 
 	static const char *ptx_pass_libraries = DEFAULT_PTX_PASS_EXECUTABLE;
 	std::vector<std::filesystem::path> pass_libraries;
@@ -446,6 +721,9 @@ revert_frida_replaced_exports_if_present(GumInterceptor *interceptor,
 
 nv_attach_impl::~nv_attach_impl()
 {
+	// Dump SASS sampler output before reverting any CUDA hooks.
+	maybe_dump_sass_samples();
+
 	if (frida_interceptor != nullptr) {
 		auto interceptor = (GumInterceptor *)frida_interceptor;
 		gum_interceptor_begin_transaction(interceptor);
@@ -459,6 +737,25 @@ nv_attach_impl::~nv_attach_impl()
 		static const char *const replaced_symbols[] = {
 			"cudaLaunchKernel",
 			"cudaLaunchKernel_ptsz",
+			"cuModuleGetFunction",
+			"cuLaunchKernel",
+			"cuMemcpyHtoD_v2",
+			"cuMemcpyHtoDAsync_v2",
+			"cuMemcpyDtoH_v2",
+			"cuMemcpyDtoHAsync_v2",
+			"cuMemcpyDtoD_v2",
+			"cuMemcpyDtoDAsync_v2",
+			"cuMemsetD8Async",
+			"cuMemsetD32Async",
+			"cuMemAlloc_v2",
+			"cuMemFree_v2",
+			"cuMemAllocAsync",
+			"cuMemFreeAsync",
+			"cuStreamSynchronize",
+			"cuCtxSynchronize",
+			"cuEventRecord",
+			"cuEventSynchronize",
+			"cuGraphLaunch",
 			"cuGraphAddKernelNode",
 			"cuGraphAddKernelNode_v2",
 			"cuGraphExecKernelNodeSetParams",
@@ -482,23 +779,1906 @@ nv_attach_impl::~nv_attach_impl()
 	}
 }
 
+namespace
+{
+static bool env_truthy_local(const char *key)
+{
+	const char *v = std::getenv(key);
+	if (!v || !*v)
+		return false;
+	std::string s(v);
+	std::transform(s.begin(), s.end(), s.begin(),
+		       [](unsigned char c) { return (char)std::tolower(c); });
+	return s == "1" || s == "true" || s == "yes" || s == "y" || s == "on";
+}
+
+static std::optional<uint32_t> env_u32_local(const char *key)
+{
+	const char *v = std::getenv(key);
+	if (!v || !*v)
+		return std::nullopt;
+	char *end = nullptr;
+	errno = 0;
+	unsigned long x = std::strtoul(v, &end, 10);
+	if (errno != 0 || end == v)
+		return std::nullopt;
+	if (x > std::numeric_limits<uint32_t>::max())
+		return std::nullopt;
+	return static_cast<uint32_t>(x);
+}
+
+static uint32_t read_u32_le(const uint8_t *p)
+{
+	return uint32_t(p[0]) | (uint32_t(p[1]) << 8) | (uint32_t(p[2]) << 16) |
+	       (uint32_t(p[3]) << 24);
+}
+
+static std::string json_escape_local(std::string_view s)
+{
+	std::string out;
+	out.reserve(s.size() + 8);
+	for (char c : s) {
+		switch (c) {
+		case '\\':
+			out += "\\\\";
+			break;
+		case '"':
+			out += "\\\"";
+			break;
+		case '\n':
+			out += "\\n";
+			break;
+		case '\r':
+			out += "\\r";
+			break;
+		case '\t':
+			out += "\\t";
+			break;
+		default:
+			if (static_cast<unsigned char>(c) < 0x20) {
+				char buf[7];
+				std::snprintf(buf, sizeof(buf), "\\u%04x",
+					      (unsigned)c);
+				out += buf;
+			} else {
+				out += c;
+			}
+		}
+	}
+	return out;
+}
+
+static std::string expand_dump_path_local(std::string_view path)
+{
+	// Expand a minimal set of placeholders to avoid multi-process clobbering:
+	// - "%p" => pid
+	// - "%%" => "%"
+	std::string out;
+	out.reserve(path.size() + 16);
+	const int pid = static_cast<int>(getpid());
+	for (size_t i = 0; i < path.size(); i++) {
+		const char c = path[i];
+		if (c != '%' || (i + 1) >= path.size()) {
+			out.push_back(c);
+			continue;
+		}
+		const char n = path[i + 1];
+		if (n == '%') {
+			out.push_back('%');
+			i++;
+			continue;
+		}
+		if (n == 'p') {
+			out += std::to_string(pid);
+			i++;
+			continue;
+		}
+		out.push_back('%');
+	}
+	return out;
+}
+
+static void dump_sass_samples_locked(bpftime::attach::nv_attach_impl &impl,
+				     bool free_after)
+{
+	auto &st = impl.sass_sampling;
+	if (!st.enabled || !st.initialized || st.device_buffer == 0 ||
+	    st.device_bytes == 0)
+		return;
+	if (st.dump_path.empty())
+		return;
+	if (!impl.original_cu_memcpy_dtoh || !impl.original_cu_ctx_synchronize) {
+		SPDLOG_WARN(
+			"SASS sample: missing CUDA trampolines (memcpy_dtoh/ctx_sync), skip dump");
+		return;
+	}
+
+	auto cuCtxSynchronize = reinterpret_cast<CUresult (*)()>(
+		impl.original_cu_ctx_synchronize);
+	(void)cuCtxSynchronize();
+
+	std::vector<uint8_t> host(st.device_bytes);
+	auto cuMemcpyDtoH_v2 =
+		reinterpret_cast<CUresult (*)(void *, CUdeviceptr, size_t)>(
+			impl.original_cu_memcpy_dtoh);
+	const auto dtoh_res =
+		cuMemcpyDtoH_v2(host.data(), st.device_buffer, st.device_bytes);
+	if (dtoh_res != CUDA_SUCCESS) {
+		// Best-effort: during process teardown the CUDA context may already be
+		// destroyed. Treat deinit-related errors as non-fatal and avoid
+		// spurious warnings.
+		if (dtoh_res == CUDA_ERROR_NOT_INITIALIZED ||
+		    dtoh_res == CUDA_ERROR_DEINITIALIZED ||
+		    dtoh_res == CUDA_ERROR_INVALID_CONTEXT) {
+			if (env_truthy_local("BPFTIME_CUDA_SASS_DETOUR_DEBUG")) {
+				SPDLOG_INFO(
+					"SASS sample: cuMemcpyDtoH_v2 failed ({}), likely context teardown; skip dump",
+					int(dtoh_res));
+			}
+			return;
+		}
+		SPDLOG_WARN("SASS sample: cuMemcpyDtoH_v2 failed ({}), skip dump",
+			    int(dtoh_res));
+		return;
+	}
+
+	const std::string dump_path = expand_dump_path_local(st.dump_path);
+	std::ofstream ofs(dump_path, std::ios::out | std::ios::trunc);
+	if (!ofs) {
+		SPDLOG_WARN("SASS sample: failed to open dump path {}", dump_path);
+		return;
+	}
+
+	// Optional: include control header + slots in meta for identify-closure bring-up.
+	std::optional<sass_detour::Sm120SassControlHeader> ctrl_hdr;
+	std::optional<std::array<uint32_t, sass_detour::kSm120SassControlSlotsCount>>
+		ctrl_slots;
+	if (st.control_enabled &&
+	    st.buffer_data_offset == sass_detour::kSm120SassControlDataOffset &&
+	    host.size() >= sass_detour::kSm120SassControlHeaderBytes) {
+		sass_detour::Sm120SassControlHeader hdr {};
+		std::memcpy(&hdr, host.data(),
+			    std::min(host.size(), sizeof(hdr)));
+		ctrl_hdr = hdr;
+		std::array<uint32_t, sass_detour::kSm120SassControlSlotsCount> slots {};
+		const size_t slots_off = sass_detour::kSm120SassControlSlotsOffset;
+		if (slots_off + slots.size() * sizeof(uint32_t) <= host.size()) {
+			std::memcpy(slots.data(), host.data() + slots_off,
+				    slots.size() * sizeof(uint32_t));
+			ctrl_slots = slots;
+		}
+	}
+
+	if (st.mode == sass_detour::Sm120SamplingConfig::Mode::SmidBitmap) {
+		const uint8_t *data = host.data() + std::min<size_t>(host.size(), st.buffer_data_offset);
+		const size_t data_size = host.size() - std::min<size_t>(host.size(), st.buffer_data_offset);
+		ofs << "{\"type\":\"bpftime_sass_sample_meta\","
+		    << "\"mode\":\"smid_bitmap\","
+		    << "\"data_offset\":" << st.buffer_data_offset << ","
+		    << "\"device_ptr\":\"0x" << std::hex
+		    << (uint64_t)st.device_buffer << std::dec << "\","
+		    << "\"device_bytes\":" << st.device_bytes << ","
+		    << "\"desc_ur\":" << unsigned(st.desc_ur);
+		if (ctrl_hdr) {
+			ofs << ",\"control\":{"
+			    << "\"enable\":" << ctrl_hdr->enable << ","
+			    << "\"mode\":" << ctrl_hdr->mode << ","
+			    << "\"epoch\":" << ctrl_hdr->epoch << ","
+			    << "\"target_func_id\":" << ctrl_hdr->target_func_id << ","
+			    << "\"reserved0\":" << ctrl_hdr->reserved0 << ","
+			    << "\"reserved1\":" << ctrl_hdr->reserved1;
+			if (ctrl_slots) {
+				ofs << ",\"slots\":[";
+				for (size_t i = 0; i < ctrl_slots->size(); i++) {
+					if (i)
+						ofs << ",";
+					ofs << (*ctrl_slots)[i];
+				}
+				ofs << "]";
+			}
+			ofs << "}";
+		}
+		ofs << "}\n";
+		const size_t dwords =
+			std::min<size_t>(256, data_size / sizeof(uint32_t));
+		size_t set_cnt = 0;
+		for (size_t smid = 0; smid < dwords; smid++) {
+			const uint32_t v =
+				read_u32_le(data + smid * 4);
+			if (v == 0u)
+				continue;
+			set_cnt++;
+			ofs << "{\"type\":\"bpftime_sass_smid\","
+			    << "\"smid\":" << smid << ","
+			    << "\"value\":" << v << "}\n";
+		}
+		st.dumped_once = set_cnt > 0;
+		SPDLOG_INFO("SASS sample: dumped {} smids to {}", set_cnt, dump_path);
+	} else if (st.mode == sass_detour::Sm120SamplingConfig::Mode::CtaSmid) {
+		const uint8_t *data = host.data() + std::min<size_t>(host.size(), st.buffer_data_offset);
+		const size_t data_size = host.size() - std::min<size_t>(host.size(), st.buffer_data_offset);
+		const uint32_t dump_max =
+			env_u32_local("BPFTIME_CUDA_SASS_SAMPLE_DUMP_MAX")
+				.value_or(10000u);
+		const uint32_t n = std::min<uint32_t>(
+			{ st.max_records, dump_max, (uint32_t)(data_size / 4) });
+		ofs << "{\"type\":\"bpftime_sass_sample_meta\","
+		    << "\"mode\":\"ctaid_smid\","
+		    << "\"data_offset\":" << st.buffer_data_offset << ","
+		    << "\"device_ptr\":\"0x" << std::hex
+		    << (uint64_t)st.device_buffer << std::dec << "\","
+		    << "\"device_bytes\":" << st.device_bytes << ","
+		    << "\"max_ctas\":" << st.max_records << ","
+		    << "\"dump_max\":" << dump_max << ","
+		    << "\"desc_ur\":" << unsigned(st.desc_ur);
+		if (ctrl_hdr) {
+			ofs << ",\"control\":{"
+			    << "\"enable\":" << ctrl_hdr->enable << ","
+			    << "\"mode\":" << ctrl_hdr->mode << ","
+			    << "\"epoch\":" << ctrl_hdr->epoch << ","
+			    << "\"target_func_id\":" << ctrl_hdr->target_func_id << ","
+			    << "\"reserved0\":" << ctrl_hdr->reserved0 << ","
+			    << "\"reserved1\":" << ctrl_hdr->reserved1;
+			if (ctrl_slots) {
+				ofs << ",\"slots\":[";
+				for (size_t i = 0; i < ctrl_slots->size(); i++) {
+					if (i)
+						ofs << ",";
+					ofs << (*ctrl_slots)[i];
+				}
+				ofs << "]";
+			}
+			ofs << "}";
+		}
+		ofs << "}\n";
+		uint32_t dumped = 0;
+		for (uint32_t ctaid_x = 0; ctaid_x < n; ctaid_x++) {
+			const size_t off = size_t(ctaid_x) * 4u;
+			const uint32_t raw = read_u32_le(data + off);
+			if (raw == 0xffffffffu)
+				continue;
+			const uint32_t smid_hi = (raw >> 8) & 0xffu;
+			const uint32_t smid_lo = raw & 0xffu;
+			ofs << "{\"type\":\"bpftime_sass_cta\","
+			    << "\"ctaid_x\":" << ctaid_x << ","
+			    << "\"smid_raw\":" << raw << ","
+			    << "\"smid_hi8\":" << smid_hi << ","
+			    << "\"smid_lo8\":" << smid_lo << "}\n";
+			dumped++;
+		}
+		st.dumped_once = dumped > 0;
+		SPDLOG_INFO("SASS sample: dumped {} ctAs to {}", dumped, dump_path);
+	} else if (st.mode == sass_detour::Sm120SamplingConfig::Mode::PcMarker) {
+		const size_t data_off =
+			std::min<size_t>(host.size(), st.buffer_data_offset);
+		const uint8_t *data = host.data() + data_off;
+		const size_t data_size = host.size() - data_off;
+		const uint32_t dump_max =
+			env_u32_local("BPFTIME_CUDA_SASS_SAMPLE_DUMP_MAX")
+				.value_or(2000u);
+		const uint32_t dump_cap = std::min<uint32_t>(dump_max, 20000u);
+		const uint32_t ring_entries = std::max<uint32_t>(1u, st.marker_ring_entries);
+		const uint32_t record_words = 6;
+		const uint32_t record_bytes = record_words * 4u; // 24
+		const uint32_t header_bytes = 0x10u;
+		if (data_size < header_bytes) {
+			SPDLOG_WARN("SASS marker: buffer too small ({} bytes)", data_size);
+			return;
+		}
+		const uint32_t write_idx = read_u32_le(data + 0x0);
+		ofs << "{\"type\":\"bpftime_sass_sample_meta\","
+		    << "\"mode\":\"pc_marker\","
+		    << "\"data_offset\":" << st.buffer_data_offset << ","
+		    << "\"device_ptr\":\"0x" << std::hex
+		    << (uint64_t)st.device_buffer << std::dec << "\","
+		    << "\"device_bytes\":" << st.device_bytes << ","
+		    << "\"write_idx\":" << write_idx << ","
+		    << "\"ring_entries\":" << ring_entries << ","
+		    << "\"record_bytes\":" << record_bytes << ","
+		    << "\"max_ctas\":" << st.max_records << ","
+		    << "\"cta_clamp\":" << (st.marker_cta_clamp ? "true" : "false") << ","
+		    << "\"lane0_only\":" << (st.marker_lane0_only ? "true" : "false") << ","
+		    << "\"warp0_only\":" << (st.marker_warp0_only ? "true" : "false") << ","
+		    << "\"dump_max\":" << dump_cap << ","
+		    << "\"desc_ur\":" << unsigned(st.desc_ur);
+		if (ctrl_hdr) {
+			ofs << ",\"control\":{"
+			    << "\"enable\":" << ctrl_hdr->enable << ","
+			    << "\"mode\":" << ctrl_hdr->mode << ","
+			    << "\"epoch\":" << ctrl_hdr->epoch << ","
+			    << "\"target_func_id\":" << ctrl_hdr->target_func_id << ","
+			    << "\"reserved0\":" << ctrl_hdr->reserved0 << ","
+			    << "\"reserved1\":" << ctrl_hdr->reserved1;
+			if (ctrl_slots) {
+				ofs << ",\"slots\":[";
+				for (size_t i = 0; i < ctrl_slots->size(); i++) {
+					if (i)
+						ofs << ",";
+					ofs << (*ctrl_slots)[i];
+				}
+				ofs << "]";
+			}
+			ofs << "}";
+		}
+		ofs << "}\n";
+
+		const uint8_t *rec_base = data + header_bytes;
+		const size_t rec_bytes_total = data_size - header_bytes;
+		const uint32_t max_records_in_buf =
+			std::min<uint32_t>(ring_entries,
+					   (uint32_t)(rec_bytes_total / record_bytes));
+		uint32_t dumped = 0;
+		for (uint32_t i = 0; i < max_records_in_buf && dumped < dump_cap; i++) {
+			const size_t off = size_t(i) * size_t(record_bytes);
+			const uint32_t seq = read_u32_le(rec_base + off + 0);
+			const uint32_t marker_off = read_u32_le(rec_base + off + 4);
+			if (marker_off == 0xffffffffu)
+				continue;
+			const uint32_t tag = read_u32_le(rec_base + off + 8);
+			const uint32_t smid_raw = read_u32_le(rec_base + off + 12);
+			const uint32_t ctaid_x = read_u32_le(rec_base + off + 16);
+			const uint32_t tid_x = read_u32_le(rec_base + off + 20);
+			const uint32_t lane_id = tid_x & 31u;
+			const uint32_t warp_id = (tid_x >> 5) & 31u;
+			ofs << "{\"type\":\"bpftime_sass_marker\","
+			    << "\"slot\":" << i << ","
+			    << "\"seq\":" << seq << ","
+			    << "\"marker_off\":" << marker_off << ","
+			    << "\"tag\":" << tag << ","
+			    << "\"smid_raw\":" << smid_raw << ","
+			    << "\"ctaid_x\":" << ctaid_x << ","
+			    << "\"tid_x\":" << tid_x << ","
+			    << "\"warp_id\":" << warp_id << ","
+			    << "\"lane_id\":" << lane_id << "}\n";
+			dumped++;
+		}
+		st.dumped_once = dumped > 0;
+		SPDLOG_INFO("SASS marker: dumped {} records to {}", dumped, dump_path);
+	} else {
+		const size_t data_off =
+			std::min<size_t>(host.size(), st.buffer_data_offset);
+		const uint8_t *data = host.data() + data_off;
+		const size_t data_size = host.size() - data_off;
+		const bool thread_mode =
+			(st.mode ==
+			 sass_detour::Sm120SamplingConfig::Mode::ThreadMap);
+		const uint32_t warps_per_cta = 32;
+		const uint32_t lanes_per_warp = 32;
+		const bool thread_device = thread_mode && st.thread_map_device;
+		const uint32_t per_cta_slots = thread_device ? 1024u : warps_per_cta;
+		const uint32_t record_bytes =
+			thread_device ? (st.thread_map_device_stride4 ? 4u : 1u)
+				      : 4u;
+		const uint32_t max_entries = std::min<uint32_t>(
+			st.max_records,
+			(uint32_t)std::max<size_t>(
+				1, data_size / (size_t)per_cta_slots /
+					   (size_t)record_bytes));
+		const uint32_t dump_max =
+			env_u32_local("BPFTIME_CUDA_SASS_SAMPLE_DUMP_MAX")
+				.value_or(2000u);
+		const uint32_t dump_cap = std::min<uint32_t>(dump_max, 20000u);
+			ofs << "{\"type\":\"bpftime_sass_sample_meta\","
+				    << "\"mode\":\"" << (thread_mode ? "thread_map" : "warp_map")
+				    << "\","
+				    << "\"data_offset\":" << st.buffer_data_offset << ","
+				    << "\"thread_device\":" << (thread_device ? "true" : "false")
+				    << ","
+				    << "\"thread_stride_bytes\":"
+				    << (thread_device ? record_bytes : 0u) << ","
+				    << "\"cta_clamp\":"
+				    << ((thread_device && st.thread_map_device_cta_clamp) ? "true"
+										  : "false")
+				    << ","
+				    << "\"device_ptr\":\"0x" << std::hex
+				    << (uint64_t)st.device_buffer << std::dec << "\","
+				    << "\"device_bytes\":" << st.device_bytes << ","
+			    << "\"max_ctas\":" << max_entries << ","
+		    << "\"per_cta\":" << per_cta_slots << ","
+		    << "\"expanded_per_cta\":"
+		    << (thread_mode ? (warps_per_cta * lanes_per_warp) : per_cta_slots)
+		    << ","
+		    << "\"record_bytes\":" << record_bytes << ","
+		    << "\"dump_max\":" << dump_cap << ","
+		    << "\"desc_ur\":" << unsigned(st.desc_ur);
+		if (ctrl_hdr) {
+			ofs << ",\"control\":{"
+			    << "\"enable\":" << ctrl_hdr->enable << ","
+			    << "\"mode\":" << ctrl_hdr->mode << ","
+			    << "\"epoch\":" << ctrl_hdr->epoch << ","
+			    << "\"target_func_id\":" << ctrl_hdr->target_func_id << ","
+			    << "\"reserved0\":" << ctrl_hdr->reserved0 << ","
+			    << "\"reserved1\":" << ctrl_hdr->reserved1;
+			if (ctrl_slots) {
+				ofs << ",\"slots\":[";
+				for (size_t i = 0; i < ctrl_slots->size(); i++) {
+					if (i)
+						ofs << ",";
+					ofs << (*ctrl_slots)[i];
+				}
+				ofs << "]";
+			}
+			ofs << "}";
+		}
+		ofs << "}\n";
+			uint32_t dumped = 0;
+			const bool dbg_raw_u32 =
+				env_truthy_local("BPFTIME_CUDA_SASS_THREAD_MAP_DEVICE_DEBUG_STORE_TID") ||
+				env_truthy_local("BPFTIME_CUDA_SASS_THREAD_MAP_DEVICE_DEBUG_STORE_IDX");
+			for (uint32_t cta = 0; cta < max_entries && dumped < dump_cap; cta++) {
+				for (uint32_t j = 0; j < per_cta_slots && dumped < dump_cap; j++) {
+				const uint32_t idx = cta * per_cta_slots + j;
+				const size_t off = size_t(idx) * (size_t)record_bytes;
+				if (off + record_bytes > data_size)
+					break;
+				if (!thread_mode) {
+					const uint32_t a =
+						read_u32_le(data + off + 0);
+					if (a == 0xffffffffu)
+						continue;
+					const uint32_t smid_lo8 = a & 0xffu;
+					ofs << "{\"type\":\"bpftime_sass_warp\","
+					    << "\"slot\":" << idx << ","
+					    << "\"smid_raw\":" << a << ","
+					    << "\"smid_lo8\":" << smid_lo8 << ","
+					    << "\"ctaid_x\":" << cta << ","
+					    << "\"warp_id\":" << j << "}\n";
+					dumped++;
+					continue;
+				}
+
+						if (thread_device) {
+							uint32_t smid_lo8 = 0;
+							uint32_t raw_u32 = 0;
+							if (record_bytes == 1) {
+								const uint8_t a = data[off];
+								if (a == 0xffu)
+									continue;
+								smid_lo8 = unsigned(a);
+							} else {
+								const uint32_t a =
+									read_u32_le(data + off);
+								if (a == 0xffffffffu)
+									continue;
+								raw_u32 = a;
+								smid_lo8 = a & 0xffu;
+							}
+							const uint32_t tid_x = j & 1023u;
+							const uint32_t lane_id = tid_x & 31u;
+							const uint32_t warp_id =
+								(tid_x >> 5) & 31u;
+							ofs << "{\"type\":\"bpftime_sass_thread\","
+							    << "\"slot\":" << idx << ","
+							    << (dbg_raw_u32 && record_bytes == 4
+									    ? "\"raw_u32\":" +
+										      std::to_string(raw_u32) + ","
+									    : "")
+							    << "\"smid_lo8\":" << smid_lo8
+							    << ","
+							    << "\"ctaid_x\":" << cta << ","
+						    << "\"tid_x\":" << tid_x << ","
+						    << "\"warp_id\":" << warp_id << ","
+					    << "\"lane_id\":" << lane_id << "}\n";
+					dumped++;
+					continue;
+				}
+
+				// Host-expanded (per-warp slots => 32 lanes).
+				const uint32_t a =
+					read_u32_le(data + off + 0);
+				if (a == 0xffffffffu)
+					continue;
+				const uint32_t smid_lo8 = a & 0xffu;
+				for (uint32_t lane = 0; lane < lanes_per_warp &&
+						     dumped < dump_cap;
+				     lane++) {
+					const uint32_t tid_x =
+						j * lanes_per_warp + lane;
+					const uint32_t thread_slot =
+						cta * (warps_per_cta * lanes_per_warp) +
+						tid_x;
+					ofs << "{\"type\":\"bpftime_sass_thread\","
+					    << "\"slot\":" << thread_slot << ","
+					    << "\"smid_lo8\":" << smid_lo8 << ","
+					    << "\"ctaid_x\":" << cta << ","
+					    << "\"tid_x\":" << tid_x << ","
+					    << "\"warp_id\":" << j << ","
+					    << "\"lane_id\":" << lane << "}\n";
+					dumped++;
+				}
+			}
+		}
+		st.dumped_once = dumped > 0;
+		SPDLOG_INFO("SASS sample: dumped {} records to {}", dumped, dump_path);
+	}
+	ofs.flush();
+
+	if (free_after) {
+		if (impl.original_cu_mem_free) {
+			auto cuMemFree_v2 =
+				reinterpret_cast<CUresult (*)(CUdeviceptr)>(
+					impl.original_cu_mem_free);
+			(void)cuMemFree_v2(st.device_buffer);
+		}
+		st.device_buffer = 0;
+		st.device_bytes = 0;
+		st.initialized = false;
+	}
+}
+} // namespace
+
+std::optional<sass_detour::Sm120SamplingConfig>
+nv_attach_impl::get_sm120_sampling_cfg()
+{
+	std::lock_guard<std::mutex> guard(sass_sampling.lock);
+
+	sass_sampling.enabled = env_truthy_local("BPFTIME_CUDA_SASS_SAMPLE");
+	if (!sass_sampling.enabled)
+		return std::nullopt;
+
+	if (auto v = std::getenv("BPFTIME_CUDA_SASS_SAMPLE_DUMP_PATH");
+	    v && *v) {
+		sass_sampling.dump_path = v;
+	}
+	if (auto v = std::getenv("BPFTIME_CUDA_SASS_SAMPLE_MODE"); v && *v) {
+		std::string s(v);
+		std::transform(s.begin(), s.end(), s.begin(),
+			       [](unsigned char c) {
+				       return (char)std::tolower(c);
+			       });
+		if (s.find("thread") != std::string::npos)
+			sass_sampling.mode =
+				sass_detour::Sm120SamplingConfig::Mode::ThreadMap;
+		else if (s.find("marker") != std::string::npos ||
+			 s.find("pc") != std::string::npos)
+			sass_sampling.mode =
+				sass_detour::Sm120SamplingConfig::Mode::PcMarker;
+		else if (s.find("warp") != std::string::npos)
+			sass_sampling.mode =
+				sass_detour::Sm120SamplingConfig::Mode::WarpMap;
+		else if (s.find("cta") != std::string::npos ||
+			 s.find("record") != std::string::npos)
+			sass_sampling.mode =
+				sass_detour::Sm120SamplingConfig::Mode::CtaSmid;
+		else
+			sass_sampling.mode = sass_detour::Sm120SamplingConfig::Mode::
+				SmidBitmap;
+	}
+	if (auto v = env_u32_local("BPFTIME_CUDA_SASS_SAMPLE_MAX_RECORDS"))
+		sass_sampling.max_records = *v;
+	// `max_records` must be power-of-two for mask-based indexing in CTA/Warp/Thread
+	// modes. PcMarker uses a separate ring buffer and can use clamp-based gating,
+	// so allow any value (including 0) there.
+	if (sass_sampling.mode != sass_detour::Sm120SamplingConfig::Mode::SmidBitmap &&
+	    sass_sampling.mode != sass_detour::Sm120SamplingConfig::Mode::PcMarker) {
+		uint32_t v = std::max(1u, sass_sampling.max_records);
+		if ((v & (v - 1u)) != 0) {
+			uint32_t p = 1u;
+			while ((p << 1u) != 0 && (p << 1u) <= v)
+				p <<= 1u;
+			SPDLOG_WARN(
+				"SASS sample: max_records={} is not power-of-two; round down to {} (mask-based indexing)",
+				v, p);
+			sass_sampling.max_records = p;
+		} else {
+			sass_sampling.max_records = v;
+		}
+	}
+	// PcMarker config (ring buffer + optional extra offsets + density gates).
+	if (sass_sampling.mode == sass_detour::Sm120SamplingConfig::Mode::PcMarker) {
+		if (auto v = env_u32_local("BPFTIME_CUDA_SASS_MARKER_RING_ENTRIES"))
+			sass_sampling.marker_ring_entries = *v;
+		// Keep ring entries as a power-of-two for mask-based indexing.
+		{
+			uint32_t v = std::max(1u, sass_sampling.marker_ring_entries);
+			if ((v & (v - 1u)) != 0) {
+				uint32_t p = 1u;
+				while ((p << 1u) != 0 && (p << 1u) <= v)
+					p <<= 1u;
+				SPDLOG_WARN(
+					"SASS marker: ring_entries={} is not power-of-two; round down to {}",
+					v, p);
+				sass_sampling.marker_ring_entries = p;
+			} else {
+				sass_sampling.marker_ring_entries = v;
+			}
+		}
+		sass_sampling.marker_lane0_only =
+			!env_truthy_local("BPFTIME_CUDA_SASS_MARKER_LANE0_ONLY_DISABLE");
+		sass_sampling.marker_warp0_only =
+			env_truthy_local("BPFTIME_CUDA_SASS_MARKER_WARP0_ONLY");
+		sass_sampling.marker_cta_clamp =
+			!env_truthy_local("BPFTIME_CUDA_SASS_MARKER_CTA_CLAMP_DISABLE");
+		sass_sampling.marker_offsets.clear();
+		if (auto v = std::getenv("BPFTIME_CUDA_SASS_MARKER_OFFSETS"); v && *v) {
+			// Comma/space separated list of byte offsets (hex or dec) relative to
+			// the `.text.*` section start.
+			std::string s(v);
+			for (char &c : s) {
+				if (c == ',' || c == ';')
+					c = ' ';
+			}
+			std::istringstream iss(s);
+			std::string tok;
+			while (iss >> tok) {
+				char *end = nullptr;
+				unsigned long long off =
+					std::strtoull(tok.c_str(), &end, 0);
+				if (!end || *end != '\0')
+					continue;
+				sass_sampling.marker_offsets.push_back(
+					static_cast<uint32_t>(off));
+				if (sass_sampling.marker_offsets.size() >= 16)
+					break;
+			}
+		}
+	}
+	// Configure thread-map layout before allocating the buffer.
+		sass_sampling.thread_map_device = false;
+		sass_sampling.thread_map_device_lane0_only = false;
+		sass_sampling.thread_map_device_warp0_only = false;
+		sass_sampling.thread_map_device_stride4 = false;
+		sass_sampling.thread_map_device_cta_clamp = false;
+		sass_sampling.thread_map_device_no_store = false;
+		if (sass_sampling.mode == sass_detour::Sm120SamplingConfig::Mode::ThreadMap) {
+			sass_sampling.thread_map_device =
+				env_truthy_local("BPFTIME_CUDA_SASS_THREAD_MAP_DEVICE");
+			if (sass_sampling.thread_map_device) {
+				sass_sampling.thread_map_device_lane0_only = env_truthy_local(
+					"BPFTIME_CUDA_SASS_THREAD_MAP_DEVICE_LANE0_ONLY");
+				sass_sampling.thread_map_device_warp0_only = env_truthy_local(
+					"BPFTIME_CUDA_SASS_THREAD_MAP_DEVICE_WARP0_ONLY");
+				sass_sampling.thread_map_device_stride4 = env_truthy_local(
+					"BPFTIME_CUDA_SASS_THREAD_MAP_DEVICE_STRIDE4");
+				sass_sampling.thread_map_device_cta_clamp = env_truthy_local(
+					"BPFTIME_CUDA_SASS_THREAD_MAP_DEVICE_CTA_CLAMP");
+				sass_sampling.thread_map_device_no_store = env_truthy_local(
+					"BPFTIME_CUDA_SASS_THREAD_MAP_DEVICE_NO_STORE");
+				sass_sampling.reg255_thread_map_spill_enable =
+					env_truthy_local(
+						"BPFTIME_CUDA_SASS_THREAD_MAP_DEVICE_REG255_SPILL");
+				sass_sampling.reg255_thread_map_spill_per_thread =
+					env_truthy_local(
+						"BPFTIME_CUDA_SASS_THREAD_MAP_DEVICE_REG255_SPILL_PER_THREAD");
+				sass_sampling.reg255_thread_map_spill_bytes = 0;
+				sass_sampling.reg255_thread_map_spill_stride_bytes = 0;
+				if (sass_sampling.reg255_thread_map_spill_enable) {
+					if (sass_sampling.reg255_thread_map_spill_per_thread) {
+						uint32_t stride = 0x10u;
+						if (auto v = env_u32_local(
+							    "BPFTIME_CUDA_SASS_THREAD_MAP_DEVICE_REG255_SPILL_STRIDE_BYTES"))
+							stride = std::min<uint32_t>(*v, 0x100u);
+						// Keep imm8-friendly offsets; align to 16.
+						stride = (stride + 0x0fu) & ~0x0fu;
+						sass_sampling.reg255_thread_map_spill_stride_bytes =
+							stride;
+						const size_t total =
+							(size_t)std::max(1u, sass_sampling.max_records) *
+							size_t(1024) * size_t(stride);
+						// Safety: avoid huge allocations by default.
+						const size_t cap = size_t(64) * 1024 * 1024;
+						if (total > cap) {
+							SPDLOG_WARN(
+								"SASS sample: reg255 per-thread spill would allocate {} bytes (>64MiB); disable spill (reduce max_records or stride)",
+								total);
+							sass_sampling.reg255_thread_map_spill_enable =
+								false;
+							sass_sampling.reg255_thread_map_spill_per_thread =
+								false;
+							sass_sampling.reg255_thread_map_spill_stride_bytes =
+								0;
+							sass_sampling.reg255_thread_map_spill_bytes = 0;
+						} else {
+							sass_sampling.reg255_thread_map_spill_bytes =
+								uint32_t(total);
+						}
+					} else {
+						if (auto v = env_u32_local(
+							    "BPFTIME_CUDA_SASS_THREAD_MAP_DEVICE_REG255_SPILL_BYTES")) {
+							sass_sampling.reg255_thread_map_spill_bytes =
+								std::min<uint32_t>(*v, 4096u);
+						} else {
+							sass_sampling.reg255_thread_map_spill_bytes =
+								256u;
+						}
+						// Keep imm8-friendly offsets; align to 16.
+						sass_sampling.reg255_thread_map_spill_bytes =
+							(sass_sampling.reg255_thread_map_spill_bytes +
+							 0x0fu) &
+							~0x0fu;
+					}
+				}
+			}
+		}
+	if (auto v = env_u32_local("BPFTIME_CUDA_SASS_SAMPLE_DESC_UR"))
+		sass_sampling.desc_ur = static_cast<uint8_t>(*v & 0xffu);
+		// Use a high UR pair by default to minimize clobbering of compiler-selected
+		// UR registers in kernel prologues (e.g., UR4/UR5 are commonly used).
+		// Override via `BPFTIME_CUDA_SASS_SAMPLE_DESC_UR` if needed.
+		if (!std::getenv("BPFTIME_CUDA_SASS_SAMPLE_DESC_UR"))
+			sass_sampling.desc_ur = 62;
+	// Descriptor uses a UR pair (URx/URx+1), so require an even base within
+	// the architectural range.
+	if ((sass_sampling.desc_ur & 1u) != 0 || sass_sampling.desc_ur > 62) {
+		SPDLOG_WARN(
+			"SASS sample: invalid desc_ur={}, forcing to 62",
+			(unsigned)sass_sampling.desc_ur);
+		sass_sampling.desc_ur = 62;
+	}
+
+	if (!sass_sampling.initialized) {
+		if (!original_cu_mem_alloc || !original_cu_memset_d32_async ||
+		    !original_cu_ctx_synchronize) {
+			SPDLOG_WARN(
+				"SASS sample: missing CUDA trampolines (mem_alloc/memset/ctx_sync), disable");
+			return std::nullopt;
+		}
+
+		sass_sampling.control_enabled =
+			env_truthy_local("BPFTIME_CUDA_SASS_DETOUR_IDENTIFY_CLOSURE");
+		sass_sampling.buffer_data_offset =
+			sass_sampling.control_enabled
+				? sass_detour::kSm120SassControlDataOffset
+				: 0u;
+
+		const size_t thread_map_stride_bytes =
+			sass_sampling.thread_map_device
+				? (sass_sampling.thread_map_device_stride4 ? 4u : 1u)
+				: 4u;
+		const size_t marker_record_bytes = size_t(6) * sizeof(uint32_t);
+		const size_t marker_header_bytes = 0x10u;
+		const size_t data_bytes =
+			(sass_sampling.mode ==
+			 sass_detour::Sm120SamplingConfig::Mode::SmidBitmap)
+				? (size_t(256) * sizeof(uint32_t))
+			: (sass_sampling.mode ==
+				   sass_detour::Sm120SamplingConfig::Mode::CtaSmid)
+					  ? (size_t(std::max(1u, sass_sampling.max_records)) *
+					     sizeof(uint32_t))
+					  : (sass_sampling.mode ==
+						     sass_detour::Sm120SamplingConfig::Mode::
+							     PcMarker)
+						    ? (marker_header_bytes +
+						       size_t(std::max(
+							      1u,
+							      sass_sampling.marker_ring_entries)) *
+						       marker_record_bytes)
+					  : (sass_sampling.mode ==
+						     sass_detour::Sm120SamplingConfig::Mode::
+							     WarpMap)
+						    ? (size_t(std::max(1u, sass_sampling.max_records)) *
+						       size_t(32) * sizeof(uint32_t))
+						    : (sass_sampling.thread_map_device
+							       ? (size_t(std::max(
+									      1u,
+									      sass_sampling.max_records)) *
+								  size_t(1024) *
+								  thread_map_stride_bytes)
+							       : (size_t(std::max(
+									      1u,
+									      sass_sampling.max_records)) *
+								  size_t(32) *
+								  sizeof(uint32_t)));
+		const size_t bytes = (size_t)sass_sampling.buffer_data_offset +
+				     data_bytes +
+				     (size_t)sass_sampling.reg255_thread_map_spill_bytes;
+		CUdeviceptr dptr = 0;
+		auto cuMemAlloc_v2 =
+			reinterpret_cast<CUresult (*)(CUdeviceptr *, size_t)>(
+				original_cu_mem_alloc);
+		if (cuMemAlloc_v2(&dptr, bytes) != CUDA_SUCCESS) {
+			SPDLOG_WARN("SASS sample: cuMemAlloc_v2 failed");
+			return std::nullopt;
+		}
+
+		auto cuMemsetD32Async =
+			reinterpret_cast<CUresult (*)(CUdeviceptr, unsigned int,
+						      size_t, CUstream)>(
+				original_cu_memset_d32_async);
+		const size_t dwords = bytes / 4;
+		(void)cuMemsetD32Async(dptr, 0u, dwords, nullptr);
+		const size_t data_dwords = data_bytes / 4;
+		const unsigned int init =
+			(sass_sampling.mode ==
+			 sass_detour::Sm120SamplingConfig::Mode::SmidBitmap)
+				? 0u
+				: 0xffffffffu;
+		if (data_dwords != 0) {
+			(void)cuMemsetD32Async(
+				dptr + (CUdeviceptr)sass_sampling.buffer_data_offset, init,
+				data_dwords, nullptr);
+		}
+		// PcMarker: keep write_idx at 0 while leaving the record region at 0xffffffff.
+		if (sass_sampling.mode == sass_detour::Sm120SamplingConfig::Mode::PcMarker) {
+			(void)cuMemsetD32Async(
+				dptr + (CUdeviceptr)sass_sampling.buffer_data_offset, 0u,
+				1, nullptr);
+		}
+
+		auto cuCtxSynchronize =
+			reinterpret_cast<CUresult (*)()>(original_cu_ctx_synchronize);
+		(void)cuCtxSynchronize();
+
+		sass_sampling.device_buffer = dptr;
+		sass_sampling.device_bytes = bytes;
+		sass_sampling.initialized = true;
+		sass_sampling.dumped_once = false;
+		sass_sampling.sync_dump_attempts = 0;
+		sass_sampling.dumped_on_first_launch = false;
+			SPDLOG_INFO(
+				"SASS sample: initialized buffer dev_ptr=0x{:x} bytes={} data_offset={} max_records={} desc_ur={} marker_ring_entries={} marker_offsets={} marker_lane0_only={} marker_warp0_only={} marker_cta_clamp={} thread_device={} lane0_only={} warp0_only={} stride4={} cta_clamp={} control={} reg255_spill={} reg255_spill_per_thread={} reg255_spill_stride={} reg255_spill_bytes={}",
+				(uint64_t)dptr, bytes, sass_sampling.buffer_data_offset,
+				sass_sampling.max_records, (unsigned)sass_sampling.desc_ur,
+				sass_sampling.marker_ring_entries,
+				sass_sampling.marker_offsets.size(),
+				sass_sampling.marker_lane0_only ? "true" : "false",
+				sass_sampling.marker_warp0_only ? "true" : "false",
+				sass_sampling.marker_cta_clamp ? "true" : "false",
+				sass_sampling.thread_map_device,
+				sass_sampling.thread_map_device_lane0_only,
+				sass_sampling.thread_map_device_warp0_only,
+				sass_sampling.thread_map_device_stride4,
+				sass_sampling.thread_map_device_cta_clamp,
+				sass_sampling.control_enabled ? "true" : "false",
+				sass_sampling.reg255_thread_map_spill_enable ? "true"
+									     : "false",
+				sass_sampling.reg255_thread_map_spill_per_thread ? "true"
+										 : "false",
+				sass_sampling.reg255_thread_map_spill_stride_bytes,
+				sass_sampling.reg255_thread_map_spill_bytes);
+		}
+
+	return sass_detour::Sm120SamplingConfig {
+		.enabled = true,
+		.mode = sass_sampling.mode,
+		.sample_buffer_device_ptr = (uint64_t)sass_sampling.device_buffer,
+		.buffer_data_offset = sass_sampling.buffer_data_offset,
+		.control_enabled = sass_sampling.control_enabled,
+		.max_records =
+			(sass_sampling.mode ==
+			 sass_detour::Sm120SamplingConfig::Mode::SmidBitmap)
+				? 0u
+				: (sass_sampling.mode ==
+						   sass_detour::Sm120SamplingConfig::Mode::PcMarker
+					   ? sass_sampling.max_records
+					   : std::max(1u, sass_sampling.max_records)),
+		.thread_map_device = sass_sampling.thread_map_device,
+		.thread_map_device_lane0_only =
+			sass_sampling.thread_map_device_lane0_only,
+		.thread_map_device_warp0_only =
+			sass_sampling.thread_map_device_warp0_only,
+			.thread_map_device_stride4 =
+				sass_sampling.thread_map_device_stride4,
+			.thread_map_device_cta_clamp =
+				sass_sampling.thread_map_device_cta_clamp,
+			.thread_map_device_no_store =
+				sass_sampling.thread_map_device_no_store,
+		.reg255_thread_map_spill_enable =
+			sass_sampling.reg255_thread_map_spill_enable,
+		.reg255_thread_map_spill_per_thread =
+			sass_sampling.reg255_thread_map_spill_per_thread,
+		.reg255_thread_map_spill_stride_bytes =
+			sass_sampling.reg255_thread_map_spill_stride_bytes,
+		.reg255_thread_map_spill_bytes =
+			sass_sampling.reg255_thread_map_spill_bytes,
+		.marker_ring_entries =
+			(sass_sampling.mode ==
+			 sass_detour::Sm120SamplingConfig::Mode::PcMarker)
+				? std::max(1u, sass_sampling.marker_ring_entries)
+				: 0u,
+		.marker_offsets = sass_sampling.marker_offsets,
+		.marker_lane0_only = sass_sampling.marker_lane0_only,
+		.marker_warp0_only = sass_sampling.marker_warp0_only,
+		.marker_cta_clamp = sass_sampling.marker_cta_clamp,
+		.desc_ur = sass_sampling.desc_ur,
+	};
+}
+
+void nv_attach_impl::record_sass_sampled_kernels(
+	const std::vector<sass_detour::InstrumentedKernelInfo> &kernels)
+{
+	if (kernels.empty())
+		return;
+	std::lock_guard<std::mutex> guard(sass_sampling.lock);
+	for (const auto &k : kernels) {
+		if (k.tag == 0 || k.kernel_name.empty())
+			continue;
+		sass_sampling.tag_to_kernel.emplace(k.tag, k.kernel_name);
+	}
+}
+
+void nv_attach_impl::maybe_dump_sass_samples()
+{
+	std::lock_guard<std::mutex> guard(sass_sampling.lock);
+	if (!sass_sampling.dump_on_exit)
+		return;
+	// If we've already produced a valid dump (via dump-on-sync or other trigger),
+	// avoid issuing CUDA API calls again during process teardown. Some workloads
+	// destroy the CUDA context before our destructor runs, and a second dump
+	// attempt will fail with deinit/invalid-context errors.
+	if (sass_sampling.dumped_once)
+		return;
+	dump_sass_samples_locked(*this, /*free_after=*/true);
+}
+
+void nv_attach_impl::maybe_dump_sass_samples_on_sync()
+{
+	if (!env_truthy_local("BPFTIME_CUDA_SASS_SAMPLE_DUMP_ON_SYNC"))
+		return;
+	std::lock_guard<std::mutex> guard(sass_sampling.lock);
+	if (sass_sampling.dumped_once)
+		return;
+	const bool allow_retry =
+		sass_sampling.control_enabled &&
+		env_truthy_local("BPFTIME_CUDA_SASS_DETOUR_IDENTIFY_CLOSURE");
+	// Avoid consuming the limited "dump on sync" attempts before any matching
+	// kernel has had a chance to arm identify or set a target func_id. Real
+	// vLLM workloads can issue many early syncs during initialization.
+	if (allow_retry) {
+		const bool pending =
+			sass_detour_filter_state.identify_pending.load(
+				std::memory_order_acquire);
+		const bool has_any_target =
+			(sass_detour_filter_state.identify_target_func_id != 0u) ||
+			(sass_detour_filter_state.identify_epoch != 0u);
+		if (!pending && !has_any_target)
+			return;
+	}
+	const uint32_t max_attempts =
+		allow_retry
+			? env_u32_local(
+				  "BPFTIME_CUDA_SASS_SAMPLE_SYNC_DUMP_MAX_ATTEMPTS")
+				  .value_or(4u)
+			: 1u;
+	if (sass_sampling.sync_dump_attempts >= max_attempts)
+		return;
+	sass_sampling.sync_dump_attempts++;
+	dump_sass_samples_locked(*this, /*free_after=*/false);
+}
+
+void nv_attach_impl::dump_sass_samples_force()
+{
+	std::lock_guard<std::mutex> guard(sass_sampling.lock);
+	dump_sass_samples_locked(*this, /*free_after=*/false);
+}
+
+bool nv_attach_impl::can_patch_ptx() const
+{
+	return this->shared_mem_ptr != 0 && !this->hook_entries.empty();
+}
+
+namespace
+{
+static std::string json_escape(std::string_view s)
+{
+	std::string out;
+	out.reserve(s.size() + 8);
+	for (char c : s) {
+		switch (c) {
+		case '\\':
+			out += "\\\\";
+			break;
+		case '"':
+			out += "\\\"";
+			break;
+		case '\n':
+			out += "\\n";
+			break;
+		case '\r':
+			out += "\\r";
+			break;
+		case '\t':
+			out += "\\t";
+			break;
+		default:
+			out.push_back(c);
+			break;
+		}
+	}
+	return out;
+}
+} // namespace
+
+static uint64_t fnv1a64_local(std::span<const uint8_t> data)
+{
+	uint64_t h = 1469598103934665603ull;
+	for (uint8_t b : data) {
+		h ^= uint64_t(b);
+		h *= 1099511628211ull;
+	}
+	return h;
+}
+
+static bool safe_read_u64_local(const void *remote, uint64_t *out)
+{
+	if (!remote || !out)
+		return false;
+	iovec local_iov { out, sizeof(uint64_t) };
+	iovec remote_iov { const_cast<void *>(remote), sizeof(uint64_t) };
+	const ssize_t n =
+		process_vm_readv(getpid(), &local_iov, 1, &remote_iov, 1, 0);
+	return n == (ssize_t)sizeof(uint64_t);
+}
+
+uint64_t nv_attach_impl::trace_cuda_kernel_launch(
+	const std::string &kernel_name, int grid_x, int grid_y, int grid_z,
+	int block_x, int block_y, int block_z, size_t shared_mem, void *stream,
+	void **kernel_params, void **extra)
+{
+	if (env_truthy_local(
+		    "BPFTIME_CUDA_SASS_SAMPLE_DUMP_ON_FIRST_SAMPLED_LAUNCH")) {
+		std::lock_guard<std::mutex> guard(sass_sampling.lock);
+		if (sass_sampling.enabled && sass_sampling.initialized &&
+		    !sass_sampling.dumped_on_first_launch) {
+			bool match = false;
+			if (!sass_sampling.tag_to_kernel.empty()) {
+				for (const auto &kv :
+				     sass_sampling.tag_to_kernel) {
+					const auto &k = kv.second;
+					if (k.empty())
+						continue;
+					if (kernel_name.find(k) !=
+						    std::string::npos ||
+					    k.find(kernel_name) !=
+						    std::string::npos) {
+						match = true;
+						break;
+					}
+				}
+			}
+
+			if (!match) {
+				const char *sample_filter = std::getenv(
+					"BPFTIME_CUDA_SASS_SAMPLE_FILTER");
+				const char *detour_filter = std::getenv(
+					"BPFTIME_CUDA_SASS_DETOUR_FILTER");
+				std::string_view filter_sv =
+					(sample_filter && *sample_filter)
+						? std::string_view(
+							  sample_filter)
+					: (detour_filter && *detour_filter)
+						? std::string_view(
+							  detour_filter)
+						: std::string_view();
+				if (!filter_sv.empty() &&
+				    kernel_name.find(filter_sv) !=
+					    std::string::npos)
+					match = true;
+			}
+
+			if (match) {
+				sass_sampling.dumped_on_first_launch = true;
+				dump_sass_samples_locked(*this,
+							 /*free_after=*/false);
+			}
+		}
+	} else if (env_truthy_local("BPFTIME_CUDA_SASS_SAMPLE_DUMP_ON_FIRST_LAUNCH")) {
+		std::lock_guard<std::mutex> guard(sass_sampling.lock);
+		if (sass_sampling.enabled && sass_sampling.initialized &&
+		    !sass_sampling.dumped_on_first_launch) {
+			sass_sampling.dumped_on_first_launch = true;
+			dump_sass_samples_locked(*this, /*free_after=*/false);
+		}
+	}
+
+	if (!cuda_launch_trace_enabled)
+		return 0;
+	timespec ts {};
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	const uint64_t ts_ns =
+		static_cast<uint64_t>(ts.tv_sec) * 1000ULL * 1000ULL * 1000ULL +
+		static_cast<uint64_t>(ts.tv_nsec);
+	const uint64_t seq =
+		cuda_launch_seq.fetch_add(1, std::memory_order_relaxed);
+	const int pid = static_cast<int>(getpid());
+	const long tid = static_cast<long>(syscall(SYS_gettid));
+
+	const bool want_args = env_truthy_local("BPFTIME_CUDA_TRACE_ARGS");
+	const bool want_args_words =
+		env_truthy_local("BPFTIME_CUDA_TRACE_ARGS_WORDS");
+	const uint32_t max_args =
+		env_u32_local("BPFTIME_CUDA_TRACE_ARGS_MAX").value_or(8u);
+	std::vector<uint64_t> arg_words;
+	uint64_t args_fingerprint = 0;
+	if (want_args && kernel_params != nullptr && max_args != 0) {
+		const char *f0 = std::getenv("BPFTIME_CUDA_TRACE_ARGS_FILTER");
+		const char *f1 = std::getenv("BPFTIME_CUDA_SASS_DETOUR_FILTER");
+		const char *f2 = std::getenv("BPFTIME_CUDA_SASS_SAMPLE_FILTER");
+		const std::string_view fsv =
+			(f0 && *f0) ? std::string_view(f0)
+			: (f1 && *f1) ? std::string_view(f1)
+			: (f2 && *f2) ? std::string_view(f2)
+				      : std::string_view {};
+		const bool hit = (!fsv.empty() &&
+				  kernel_name.find(fsv) != std::string::npos);
+		if (!hit) {
+			// Keep it safe by default: do not attempt to read args unless the
+			// user provides a filter (or reuses an existing SASS filter).
+		} else {
+		arg_words.reserve(std::min<uint32_t>(max_args, 32u));
+		for (uint32_t i = 0; i < max_args; i++) {
+			uint64_t ap_u64 = 0;
+			if (!safe_read_u64_local(&kernel_params[i], &ap_u64))
+				break;
+			const void *ap = reinterpret_cast<const void *>(ap_u64);
+			if (!ap) {
+				arg_words.push_back(0);
+				continue;
+			}
+			uint64_t w = 0;
+			if (!safe_read_u64_local(ap, &w)) {
+				arg_words.push_back(0);
+				continue;
+			}
+			arg_words.push_back(w);
+		}
+		args_fingerprint = fnv1a64_local(std::span<const uint8_t>(
+			reinterpret_cast<const uint8_t *>(arg_words.data()),
+			arg_words.size() * sizeof(uint64_t)));
+		}
+	}
+
+	{
+		std::lock_guard<std::mutex> guard(cuda_launch_trace_mutex);
+		cuda_launch_trace_ofs << "{\"type\":\"launch\",\"seq\":" << seq
+				      << ",\"ts_ns\":" << ts_ns << ",\"pid\":" << pid
+				      << ",\"tid\":" << tid << ",\"name\":\""
+				      << json_escape(kernel_name) << "\",\"grid\":["
+				      << grid_x << "," << grid_y << "," << grid_z
+				      << "],\"block\":[" << block_x << "," << block_y
+				      << "," << block_z << "],\"shared_mem\":"
+				      << shared_mem << ",\"stream\":\"0x" << std::hex
+				      << reinterpret_cast<uintptr_t>(stream) << "\""
+				      << std::dec
+				      << ",\"uses_extra\":"
+				      << (extra ? "true" : "false");
+		if (want_args && args_fingerprint != 0) {
+			cuda_launch_trace_ofs << ",\"args_fingerprint\":\"0x"
+					      << std::hex << args_fingerprint
+					      << std::dec << "\"";
+			if (want_args_words) {
+				cuda_launch_trace_ofs << ",\"args_words\":[";
+				for (size_t i = 0; i < arg_words.size(); i++) {
+					if (i)
+						cuda_launch_trace_ofs << ",";
+					cuda_launch_trace_ofs << "\"0x" << std::hex
+							      << arg_words[i]
+							      << std::dec << "\"";
+				}
+				cuda_launch_trace_ofs << "]";
+			}
+		}
+		cuda_launch_trace_ofs << "}\n";
+		if ((seq & 0x3ff) == 0)
+			cuda_launch_trace_ofs.flush();
+	}
+
+	return seq;
+}
+
+void nv_attach_impl::trace_cuda_memcpy(const char *kind, uint64_t bytes,
+				       void *dst, void *src, void *stream,
+				       int result, bool async)
+{
+	if (!cuda_launch_trace_enabled)
+		return;
+	timespec ts {};
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	const uint64_t ts_ns =
+		static_cast<uint64_t>(ts.tv_sec) * 1000ULL * 1000ULL * 1000ULL +
+		static_cast<uint64_t>(ts.tv_nsec);
+	const uint64_t seq =
+		cuda_launch_seq.fetch_add(1, std::memory_order_relaxed);
+	const int pid = static_cast<int>(getpid());
+	const long tid = static_cast<long>(syscall(SYS_gettid));
+	std::lock_guard<std::mutex> guard(cuda_launch_trace_mutex);
+	cuda_launch_trace_ofs << "{\"type\":\"memcpy\",\"seq\":" << seq
+			      << ",\"ts_ns\":" << ts_ns << ",\"pid\":" << pid
+			      << ",\"tid\":" << tid << ",\"kind\":\""
+			      << (kind ? json_escape(kind) : "unknown")
+			      << "\",\"bytes\":" << bytes << ",\"dst\":\"0x"
+			      << std::hex << reinterpret_cast<uintptr_t>(dst)
+			      << "\",\"src\":\"0x"
+			      << reinterpret_cast<uintptr_t>(src)
+			      << "\",\"stream\":\"0x"
+			      << reinterpret_cast<uintptr_t>(stream)
+			      << std::dec << "\",\"async\":"
+			      << (async ? "true" : "false") << ",\"result\":"
+			      << result << "}\n";
+	if ((seq & 0x3ff) == 0)
+		cuda_launch_trace_ofs.flush();
+}
+
+void nv_attach_impl::trace_cuda_memset(const char *kind, uint64_t bytes,
+				       void *dst, uint64_t value, void *stream,
+				       int result, bool async)
+{
+	if (!cuda_launch_trace_enabled)
+		return;
+	timespec ts {};
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	const uint64_t ts_ns =
+		static_cast<uint64_t>(ts.tv_sec) * 1000ULL * 1000ULL * 1000ULL +
+		static_cast<uint64_t>(ts.tv_nsec);
+	const uint64_t seq =
+		cuda_launch_seq.fetch_add(1, std::memory_order_relaxed);
+	const int pid = static_cast<int>(getpid());
+	const long tid = static_cast<long>(syscall(SYS_gettid));
+	std::lock_guard<std::mutex> guard(cuda_launch_trace_mutex);
+	cuda_launch_trace_ofs << "{\"type\":\"memset\",\"seq\":" << seq
+			      << ",\"ts_ns\":" << ts_ns << ",\"pid\":" << pid
+			      << ",\"tid\":" << tid << ",\"kind\":\""
+			      << (kind ? json_escape(kind) : "unknown")
+			      << "\",\"bytes\":" << bytes << ",\"dst\":\"0x"
+			      << std::hex << reinterpret_cast<uintptr_t>(dst)
+			      << std::dec << "\",\"value\":" << value
+			      << ",\"stream\":\"0x" << std::hex
+			      << reinterpret_cast<uintptr_t>(stream)
+			      << std::dec << "\",\"async\":"
+			      << (async ? "true" : "false") << ",\"result\":"
+			      << result << "}\n";
+	if ((seq & 0x3ff) == 0)
+		cuda_launch_trace_ofs.flush();
+}
+
+void nv_attach_impl::trace_cuda_alloc(const char *kind, uint64_t bytes,
+				      void *ptr, void *stream, int result)
+{
+	if (!cuda_launch_trace_enabled)
+		return;
+	timespec ts {};
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	const uint64_t ts_ns =
+		static_cast<uint64_t>(ts.tv_sec) * 1000ULL * 1000ULL * 1000ULL +
+		static_cast<uint64_t>(ts.tv_nsec);
+	const uint64_t seq =
+		cuda_launch_seq.fetch_add(1, std::memory_order_relaxed);
+	const int pid = static_cast<int>(getpid());
+	const long tid = static_cast<long>(syscall(SYS_gettid));
+	std::lock_guard<std::mutex> guard(cuda_launch_trace_mutex);
+	cuda_launch_trace_ofs << "{\"type\":\"alloc\",\"seq\":" << seq
+			      << ",\"ts_ns\":" << ts_ns << ",\"pid\":" << pid
+			      << ",\"tid\":" << tid << ",\"kind\":\""
+			      << (kind ? json_escape(kind) : "unknown")
+			      << "\",\"bytes\":" << bytes << ",\"ptr\":\"0x"
+			      << std::hex << reinterpret_cast<uintptr_t>(ptr)
+			      << std::dec << "\",\"stream\":\"0x" << std::hex
+			      << reinterpret_cast<uintptr_t>(stream)
+			      << std::dec << "\",\"result\":" << result
+			      << "}\n";
+	if ((seq & 0x3ff) == 0)
+		cuda_launch_trace_ofs.flush();
+}
+
+void nv_attach_impl::trace_cuda_free(const char *kind, void *ptr, void *stream,
+				     int result)
+{
+	if (!cuda_launch_trace_enabled)
+		return;
+	timespec ts {};
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	const uint64_t ts_ns =
+		static_cast<uint64_t>(ts.tv_sec) * 1000ULL * 1000ULL * 1000ULL +
+		static_cast<uint64_t>(ts.tv_nsec);
+	const uint64_t seq =
+		cuda_launch_seq.fetch_add(1, std::memory_order_relaxed);
+	const int pid = static_cast<int>(getpid());
+	const long tid = static_cast<long>(syscall(SYS_gettid));
+	std::lock_guard<std::mutex> guard(cuda_launch_trace_mutex);
+	cuda_launch_trace_ofs << "{\"type\":\"free\",\"seq\":" << seq
+			      << ",\"ts_ns\":" << ts_ns << ",\"pid\":" << pid
+			      << ",\"tid\":" << tid << ",\"kind\":\""
+			      << (kind ? json_escape(kind) : "unknown")
+			      << "\",\"ptr\":\"0x" << std::hex
+			      << reinterpret_cast<uintptr_t>(ptr) << std::dec
+			      << "\",\"stream\":\"0x" << std::hex
+			      << reinterpret_cast<uintptr_t>(stream)
+			      << std::dec << "\",\"result\":" << result
+			      << "}\n";
+	if ((seq & 0x3ff) == 0)
+		cuda_launch_trace_ofs.flush();
+}
+
+void nv_attach_impl::trace_cuda_sync(const char *api, void *obj,
+				     uint64_t duration_ns, int result)
+{
+	if (!cuda_launch_trace_enabled)
+		return;
+	timespec ts {};
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	const uint64_t ts_ns =
+		static_cast<uint64_t>(ts.tv_sec) * 1000ULL * 1000ULL * 1000ULL +
+		static_cast<uint64_t>(ts.tv_nsec);
+	const uint64_t seq =
+		cuda_launch_seq.fetch_add(1, std::memory_order_relaxed);
+	const int pid = static_cast<int>(getpid());
+	const long tid = static_cast<long>(syscall(SYS_gettid));
+
+	// Flush any pending kernel timings at safe points.
+	//
+	// We only flush on stream/context synchronization, since those imply
+	// the recorded events have completed.
+	std::vector<pending_kernel_timing> ready;
+	const std::string_view api_sv = api ? std::string_view(api) : std::string_view {};
+	const bool flush_all = (api_sv == "cuCtxSynchronize");
+	const bool flush_stream = (api_sv == "cuStreamSynchronize");
+	if (flush_all || (flush_stream && obj != nullptr)) {
+		std::lock_guard<std::mutex> g(kernel_timing_mutex);
+		for (auto it = pending_kernel_timings.begin();
+		     it != pending_kernel_timings.end();) {
+			const bool match =
+				flush_all || (flush_stream && it->stream == obj);
+			if (match) {
+				ready.push_back(std::move(*it));
+				it = pending_kernel_timings.erase(it);
+			} else {
+				++it;
+			}
+		}
+	}
+
+	using cu_event_elapsed_time_fn_t =
+		CUresult (*)(float *, CUevent, CUevent);
+	static cu_event_elapsed_time_fn_t cu_event_elapsed_time =
+		(cu_event_elapsed_time_fn_t)dlsym(RTLD_DEFAULT,
+						  "cuEventElapsedTime");
+	using cu_event_destroy_fn_t = CUresult (*)(CUevent);
+	auto cu_event_destroy =
+		reinterpret_cast<cu_event_destroy_fn_t>(original_cu_event_destroy_v2);
+
+	struct timing_out {
+		uint64_t launch_seq = 0;
+		std::string kernel_name;
+		void *stream = nullptr;
+		float gpu_ms = 0.0f;
+		int elapsed_res = 0;
+	};
+	std::vector<timing_out> timings;
+	timings.reserve(ready.size());
+	for (auto &p : ready) {
+		float ms = 0.0f;
+		int elapsed_res = CUDA_ERROR_UNKNOWN;
+		if (cu_event_elapsed_time && p.ev_start && p.ev_end) {
+			elapsed_res = cu_event_elapsed_time(&ms, p.ev_start, p.ev_end);
+		}
+		if (cu_event_destroy && p.ev_start)
+			(void)cu_event_destroy(p.ev_start);
+		if (cu_event_destroy && p.ev_end)
+			(void)cu_event_destroy(p.ev_end);
+		timings.push_back(timing_out {
+			p.launch_seq,
+			std::move(p.kernel_name),
+			p.stream,
+			ms,
+			elapsed_res,
+		});
+	}
+
+	{
+		std::lock_guard<std::mutex> guard(cuda_launch_trace_mutex);
+		// Emit kernel timing records first, then the sync record.
+		for (const auto &t : timings) {
+			const uint64_t tseq = cuda_launch_seq.fetch_add(
+				1, std::memory_order_relaxed);
+			cuda_launch_trace_ofs
+				<< "{\"type\":\"kernel_timing\",\"seq\":" << tseq
+				<< ",\"ts_ns\":" << ts_ns << ",\"pid\":" << pid
+				<< ",\"tid\":" << tid << ",\"launch_seq\":" << t.launch_seq
+				<< ",\"name\":\"" << json_escape(t.kernel_name)
+				<< "\",\"stream\":\"0x" << std::hex
+				<< reinterpret_cast<uintptr_t>(t.stream) << std::dec
+				<< "\",\"gpu_ms\":" << t.gpu_ms
+				<< ",\"elapsed_result\":" << t.elapsed_res
+				<< ",\"flushed_by_api\":\""
+				<< (api ? json_escape(api) : "unknown")
+				<< "\",\"flushed_by_seq\":" << seq << "}\n";
+		}
+		cuda_launch_trace_ofs << "{\"type\":\"sync\",\"seq\":" << seq
+				      << ",\"ts_ns\":" << ts_ns << ",\"pid\":" << pid
+				      << ",\"tid\":" << tid << ",\"api\":\""
+				      << (api ? json_escape(api) : "unknown")
+				      << "\",\"obj\":\"0x" << std::hex
+				      << reinterpret_cast<uintptr_t>(obj) << std::dec
+				      << "\",\"duration_ns\":" << duration_ns
+				      << ",\"result\":" << result << "}\n";
+		if ((seq & 0x3ff) == 0)
+			cuda_launch_trace_ofs.flush();
+	}
+}
+
+void nv_attach_impl::trace_cuda_graph_launch(void *graph_exec, void *stream,
+					     int result)
+{
+	if (!cuda_launch_trace_enabled)
+		return;
+	timespec ts {};
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	const uint64_t ts_ns =
+		static_cast<uint64_t>(ts.tv_sec) * 1000ULL * 1000ULL * 1000ULL +
+		static_cast<uint64_t>(ts.tv_nsec);
+	const uint64_t seq =
+		cuda_launch_seq.fetch_add(1, std::memory_order_relaxed);
+	const int pid = static_cast<int>(getpid());
+	const long tid = static_cast<long>(syscall(SYS_gettid));
+	std::lock_guard<std::mutex> guard(cuda_launch_trace_mutex);
+	cuda_launch_trace_ofs
+		<< "{\"type\":\"graph_launch\",\"seq\":" << seq
+		<< ",\"ts_ns\":" << ts_ns << ",\"pid\":" << pid
+		<< ",\"tid\":" << tid << ",\"graph_exec\":\"0x" << std::hex
+		<< reinterpret_cast<uintptr_t>(graph_exec) << std::dec
+		<< "\",\"stream\":\"0x" << std::hex
+		<< reinterpret_cast<uintptr_t>(stream) << std::dec
+		<< "\",\"result\":" << result << "}\n";
+	if ((seq & 0x3ff) == 0)
+		cuda_launch_trace_ofs.flush();
+}
+
+void nv_attach_impl::trace_cuda_event_record(void *event, void *stream,
+					     int result)
+{
+	if (!cuda_launch_trace_enabled)
+		return;
+	timespec ts {};
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	const uint64_t ts_ns =
+		static_cast<uint64_t>(ts.tv_sec) * 1000ULL * 1000ULL * 1000ULL +
+		static_cast<uint64_t>(ts.tv_nsec);
+	const uint64_t seq =
+		cuda_launch_seq.fetch_add(1, std::memory_order_relaxed);
+	const int pid = static_cast<int>(getpid());
+	const long tid = static_cast<long>(syscall(SYS_gettid));
+	std::lock_guard<std::mutex> guard(cuda_launch_trace_mutex);
+	cuda_launch_trace_ofs << "{\"type\":\"event_record\",\"seq\":" << seq
+			      << ",\"ts_ns\":" << ts_ns << ",\"pid\":" << pid
+			      << ",\"tid\":" << tid << ",\"event\":\"0x"
+			      << std::hex << reinterpret_cast<uintptr_t>(event)
+			      << std::dec << "\",\"stream\":\"0x" << std::hex
+			      << reinterpret_cast<uintptr_t>(stream)
+			      << std::dec << "\",\"result\":" << result
+			      << "}\n";
+	if ((seq & 0x3ff) == 0)
+		cuda_launch_trace_ofs.flush();
+}
+
+void nv_attach_impl::trace_cuda_stream_create(const char *api, void *stream,
+					      unsigned int flags, int priority,
+					      int result)
+{
+	if (!cuda_launch_trace_enabled)
+		return;
+	timespec ts {};
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	const uint64_t ts_ns =
+		static_cast<uint64_t>(ts.tv_sec) * 1000ULL * 1000ULL * 1000ULL +
+		static_cast<uint64_t>(ts.tv_nsec);
+	const uint64_t seq =
+		cuda_launch_seq.fetch_add(1, std::memory_order_relaxed);
+	const int pid = static_cast<int>(getpid());
+	const long tid = static_cast<long>(syscall(SYS_gettid));
+	std::lock_guard<std::mutex> guard(cuda_launch_trace_mutex);
+	cuda_launch_trace_ofs
+		<< "{\"type\":\"stream_create\",\"seq\":" << seq
+		<< ",\"ts_ns\":" << ts_ns << ",\"pid\":" << pid
+		<< ",\"tid\":" << tid << ",\"api\":\""
+		<< (api ? json_escape(api) : "unknown") << "\",\"stream\":\"0x"
+		<< std::hex << reinterpret_cast<uintptr_t>(stream) << std::dec
+		<< "\",\"flags\":" << flags << ",\"priority\":" << priority
+		<< ",\"result\":" << result << "}\n";
+	if ((seq & 0x3ff) == 0)
+		cuda_launch_trace_ofs.flush();
+}
+
+void nv_attach_impl::trace_cuda_stream_destroy(void *stream, int result)
+{
+	if (!cuda_launch_trace_enabled)
+		return;
+	timespec ts {};
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	const uint64_t ts_ns =
+		static_cast<uint64_t>(ts.tv_sec) * 1000ULL * 1000ULL * 1000ULL +
+		static_cast<uint64_t>(ts.tv_nsec);
+	const uint64_t seq =
+		cuda_launch_seq.fetch_add(1, std::memory_order_relaxed);
+	const int pid = static_cast<int>(getpid());
+	const long tid = static_cast<long>(syscall(SYS_gettid));
+	std::lock_guard<std::mutex> guard(cuda_launch_trace_mutex);
+	cuda_launch_trace_ofs
+		<< "{\"type\":\"stream_destroy\",\"seq\":" << seq
+		<< ",\"ts_ns\":" << ts_ns << ",\"pid\":" << pid
+		<< ",\"tid\":" << tid << ",\"stream\":\"0x" << std::hex
+		<< reinterpret_cast<uintptr_t>(stream) << std::dec
+		<< "\",\"result\":" << result << "}\n";
+	if ((seq & 0x3ff) == 0)
+		cuda_launch_trace_ofs.flush();
+}
+
+void nv_attach_impl::trace_cuda_stream_wait_event(void *stream, void *event,
+						  unsigned int flags,
+						  int result)
+{
+	if (!cuda_launch_trace_enabled)
+		return;
+	timespec ts {};
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	const uint64_t ts_ns =
+		static_cast<uint64_t>(ts.tv_sec) * 1000ULL * 1000ULL * 1000ULL +
+		static_cast<uint64_t>(ts.tv_nsec);
+	const uint64_t seq =
+		cuda_launch_seq.fetch_add(1, std::memory_order_relaxed);
+	const int pid = static_cast<int>(getpid());
+	const long tid = static_cast<long>(syscall(SYS_gettid));
+	std::lock_guard<std::mutex> guard(cuda_launch_trace_mutex);
+	cuda_launch_trace_ofs
+		<< "{\"type\":\"stream_wait_event\",\"seq\":" << seq
+		<< ",\"ts_ns\":" << ts_ns << ",\"pid\":" << pid
+		<< ",\"tid\":" << tid << ",\"stream\":\"0x" << std::hex
+		<< reinterpret_cast<uintptr_t>(stream) << std::dec
+		<< "\",\"event\":\"0x" << std::hex
+		<< reinterpret_cast<uintptr_t>(event) << std::dec
+		<< "\",\"flags\":" << flags << ",\"result\":" << result
+		<< "}\n";
+	if ((seq & 0x3ff) == 0)
+		cuda_launch_trace_ofs.flush();
+}
+
+void nv_attach_impl::trace_cuda_event_create(void *event, unsigned int flags,
+					     int result)
+{
+	if (!cuda_launch_trace_enabled)
+		return;
+	timespec ts {};
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	const uint64_t ts_ns =
+		static_cast<uint64_t>(ts.tv_sec) * 1000ULL * 1000ULL * 1000ULL +
+		static_cast<uint64_t>(ts.tv_nsec);
+	const uint64_t seq =
+		cuda_launch_seq.fetch_add(1, std::memory_order_relaxed);
+	const int pid = static_cast<int>(getpid());
+	const long tid = static_cast<long>(syscall(SYS_gettid));
+	std::lock_guard<std::mutex> guard(cuda_launch_trace_mutex);
+	cuda_launch_trace_ofs
+		<< "{\"type\":\"event_create\",\"seq\":" << seq
+		<< ",\"ts_ns\":" << ts_ns << ",\"pid\":" << pid
+		<< ",\"tid\":" << tid << ",\"event\":\"0x" << std::hex
+		<< reinterpret_cast<uintptr_t>(event) << std::dec
+		<< "\",\"flags\":" << flags << ",\"result\":" << result
+		<< "}\n";
+	if ((seq & 0x3ff) == 0)
+		cuda_launch_trace_ofs.flush();
+}
+
+void nv_attach_impl::trace_cuda_event_destroy(void *event, int result)
+{
+	if (!cuda_launch_trace_enabled)
+		return;
+	timespec ts {};
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	const uint64_t ts_ns =
+		static_cast<uint64_t>(ts.tv_sec) * 1000ULL * 1000ULL * 1000ULL +
+		static_cast<uint64_t>(ts.tv_nsec);
+	const uint64_t seq =
+		cuda_launch_seq.fetch_add(1, std::memory_order_relaxed);
+	const int pid = static_cast<int>(getpid());
+	const long tid = static_cast<long>(syscall(SYS_gettid));
+	std::lock_guard<std::mutex> guard(cuda_launch_trace_mutex);
+	cuda_launch_trace_ofs
+		<< "{\"type\":\"event_destroy\",\"seq\":" << seq
+		<< ",\"ts_ns\":" << ts_ns << ",\"pid\":" << pid
+		<< ",\"tid\":" << tid << ",\"event\":\"0x" << std::hex
+		<< reinterpret_cast<uintptr_t>(event) << std::dec
+		<< "\",\"result\":" << result << "}\n";
+	if ((seq & 0x3ff) == 0)
+		cuda_launch_trace_ofs.flush();
+}
+
+void nv_attach_impl::trace_cuda_module_load(const char *api, void *module,
+					    void *image,
+					    unsigned int num_options,
+					    int result)
+{
+	if (!cuda_launch_trace_enabled)
+		return;
+	timespec ts {};
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	const uint64_t ts_ns =
+		static_cast<uint64_t>(ts.tv_sec) * 1000ULL * 1000ULL * 1000ULL +
+		static_cast<uint64_t>(ts.tv_nsec);
+	const uint64_t seq =
+		cuda_launch_seq.fetch_add(1, std::memory_order_relaxed);
+	const int pid = static_cast<int>(getpid());
+	const long tid = static_cast<long>(syscall(SYS_gettid));
+	std::lock_guard<std::mutex> guard(cuda_launch_trace_mutex);
+	cuda_launch_trace_ofs
+		<< "{\"type\":\"module_load\",\"seq\":" << seq
+		<< ",\"ts_ns\":" << ts_ns << ",\"pid\":" << pid
+		<< ",\"tid\":" << tid << ",\"api\":\""
+		<< (api ? json_escape(api) : "unknown") << "\",\"module\":\"0x"
+		<< std::hex << reinterpret_cast<uintptr_t>(module) << std::dec
+		<< "\",\"image\":\"0x" << std::hex
+		<< reinterpret_cast<uintptr_t>(image) << std::dec
+		<< "\",\"num_options\":" << num_options
+		<< ",\"result\":" << result << "}\n";
+	if ((seq & 0x3ff) == 0)
+		cuda_launch_trace_ofs.flush();
+}
+
+void nv_attach_impl::trace_cuda_module_unload(void *module, int result)
+{
+	if (!cuda_launch_trace_enabled)
+		return;
+	timespec ts {};
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	const uint64_t ts_ns =
+		static_cast<uint64_t>(ts.tv_sec) * 1000ULL * 1000ULL * 1000ULL +
+		static_cast<uint64_t>(ts.tv_nsec);
+	const uint64_t seq =
+		cuda_launch_seq.fetch_add(1, std::memory_order_relaxed);
+	const int pid = static_cast<int>(getpid());
+	const long tid = static_cast<long>(syscall(SYS_gettid));
+	std::lock_guard<std::mutex> guard(cuda_launch_trace_mutex);
+	cuda_launch_trace_ofs
+		<< "{\"type\":\"module_unload\",\"seq\":" << seq
+		<< ",\"ts_ns\":" << ts_ns << ",\"pid\":" << pid
+		<< ",\"tid\":" << tid << ",\"module\":\"0x" << std::hex
+		<< reinterpret_cast<uintptr_t>(module) << std::dec
+		<< "\",\"result\":" << result << "}\n";
+	if ((seq & 0x3ff) == 0)
+		cuda_launch_trace_ofs.flush();
+}
+
+void nv_attach_impl::trace_cuda_library_load(const char *api, void *library,
+					     void *code,
+					     unsigned int num_jit_options,
+					     unsigned int num_library_options,
+					     int result)
+{
+	if (!cuda_launch_trace_enabled)
+		return;
+	timespec ts {};
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	const uint64_t ts_ns =
+		static_cast<uint64_t>(ts.tv_sec) * 1000ULL * 1000ULL * 1000ULL +
+		static_cast<uint64_t>(ts.tv_nsec);
+	const uint64_t seq =
+		cuda_launch_seq.fetch_add(1, std::memory_order_relaxed);
+	const int pid = static_cast<int>(getpid());
+	const long tid = static_cast<long>(syscall(SYS_gettid));
+	std::lock_guard<std::mutex> guard(cuda_launch_trace_mutex);
+	cuda_launch_trace_ofs
+		<< "{\"type\":\"library_load\",\"seq\":" << seq
+		<< ",\"ts_ns\":" << ts_ns << ",\"pid\":" << pid
+		<< ",\"tid\":" << tid << ",\"api\":\""
+		<< (api ? json_escape(api) : "unknown") << "\",\"library\":\"0x"
+		<< std::hex << reinterpret_cast<uintptr_t>(library) << std::dec
+		<< "\",\"code\":\"0x" << std::hex
+		<< reinterpret_cast<uintptr_t>(code) << std::dec
+		<< "\",\"num_jit_options\":" << num_jit_options
+		<< ",\"num_library_options\":" << num_library_options
+		<< ",\"result\":" << result << "}\n";
+	if ((seq & 0x3ff) == 0)
+		cuda_launch_trace_ofs.flush();
+}
+
+void nv_attach_impl::trace_cuda_library_unload(void *library, int result)
+{
+	if (!cuda_launch_trace_enabled)
+		return;
+	timespec ts {};
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	const uint64_t ts_ns =
+		static_cast<uint64_t>(ts.tv_sec) * 1000ULL * 1000ULL * 1000ULL +
+		static_cast<uint64_t>(ts.tv_nsec);
+	const uint64_t seq =
+		cuda_launch_seq.fetch_add(1, std::memory_order_relaxed);
+	const int pid = static_cast<int>(getpid());
+	const long tid = static_cast<long>(syscall(SYS_gettid));
+	std::lock_guard<std::mutex> guard(cuda_launch_trace_mutex);
+	cuda_launch_trace_ofs
+		<< "{\"type\":\"library_unload\",\"seq\":" << seq
+		<< ",\"ts_ns\":" << ts_ns << ",\"pid\":" << pid
+		<< ",\"tid\":" << tid << ",\"library\":\"0x" << std::hex
+		<< reinterpret_cast<uintptr_t>(library) << std::dec
+		<< "\",\"result\":" << result << "}\n";
+	if ((seq & 0x3ff) == 0)
+		cuda_launch_trace_ofs.flush();
+}
+
+void nv_attach_impl::trace_cuda_library_get_kernel(void *library, void *kernel,
+						   const char *name,
+						   int result)
+{
+	if (!cuda_launch_trace_enabled)
+		return;
+	timespec ts {};
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	const uint64_t ts_ns =
+		static_cast<uint64_t>(ts.tv_sec) * 1000ULL * 1000ULL * 1000ULL +
+		static_cast<uint64_t>(ts.tv_nsec);
+	const uint64_t seq =
+		cuda_launch_seq.fetch_add(1, std::memory_order_relaxed);
+	const int pid = static_cast<int>(getpid());
+	const long tid = static_cast<long>(syscall(SYS_gettid));
+	std::lock_guard<std::mutex> guard(cuda_launch_trace_mutex);
+	cuda_launch_trace_ofs
+		<< "{\"type\":\"library_get_kernel\",\"seq\":" << seq
+		<< ",\"ts_ns\":" << ts_ns << ",\"pid\":" << pid
+		<< ",\"tid\":" << tid << ",\"library\":\"0x" << std::hex
+		<< reinterpret_cast<uintptr_t>(library) << std::dec
+		<< "\",\"kernel\":\"0x" << std::hex
+		<< reinterpret_cast<uintptr_t>(kernel) << std::dec
+		<< "\",\"name\":\"" << (name ? json_escape(name) : "")
+		<< "\",\"result\":" << result << "}\n";
+	if ((seq & 0x3ff) == 0)
+		cuda_launch_trace_ofs.flush();
+}
+
+void nv_attach_impl::trace_cuda_kernel_get_name(void *kernel, const char *name,
+						int result)
+{
+	if (!cuda_launch_trace_enabled)
+		return;
+	timespec ts {};
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	const uint64_t ts_ns =
+		static_cast<uint64_t>(ts.tv_sec) * 1000ULL * 1000ULL * 1000ULL +
+		static_cast<uint64_t>(ts.tv_nsec);
+	const uint64_t seq =
+		cuda_launch_seq.fetch_add(1, std::memory_order_relaxed);
+	const int pid = static_cast<int>(getpid());
+	const long tid = static_cast<long>(syscall(SYS_gettid));
+	std::lock_guard<std::mutex> guard(cuda_launch_trace_mutex);
+	cuda_launch_trace_ofs
+		<< "{\"type\":\"kernel_get_name\",\"seq\":" << seq
+		<< ",\"ts_ns\":" << ts_ns << ",\"pid\":" << pid
+		<< ",\"tid\":" << tid << ",\"kernel\":\"0x" << std::hex
+		<< reinterpret_cast<uintptr_t>(kernel) << std::dec
+		<< "\",\"name\":\"" << (name ? json_escape(name) : "")
+		<< "\",\"result\":" << result << "}\n";
+	if ((seq & 0x3ff) == 0)
+		cuda_launch_trace_ofs.flush();
+}
+
+void nv_attach_impl::trace_cuda_kernel_get_function(void *kernel, void *function,
+					    int result)
+{
+	if (!cuda_launch_trace_enabled)
+		return;
+	timespec ts {};
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	const uint64_t ts_ns =
+		static_cast<uint64_t>(ts.tv_sec) * 1000ULL * 1000ULL * 1000ULL +
+		static_cast<uint64_t>(ts.tv_nsec);
+	const uint64_t seq =
+		cuda_launch_seq.fetch_add(1, std::memory_order_relaxed);
+	const int pid = static_cast<int>(getpid());
+	const long tid = static_cast<long>(syscall(SYS_gettid));
+	std::lock_guard<std::mutex> guard(cuda_launch_trace_mutex);
+	cuda_launch_trace_ofs
+		<< "{\"type\":\"kernel_get_function\",\"seq\":" << seq
+		<< ",\"ts_ns\":" << ts_ns << ",\"pid\":" << pid
+		<< ",\"tid\":" << tid << ",\"kernel\":\"0x" << std::hex
+		<< reinterpret_cast<uintptr_t>(kernel) << std::dec
+		<< "\",\"function\":\"0x" << std::hex
+		<< reinterpret_cast<uintptr_t>(function) << std::dec
+		<< "\",\"result\":" << result << "}\n";
+	if ((seq & 0x3ff) == 0)
+		cuda_launch_trace_ofs.flush();
+}
+
+bool nv_attach_impl::enqueue_cuda_kernel_timing(uint64_t launch_seq,
+						const std::string &kernel_name,
+						void *stream, CUevent start,
+						CUevent end)
+{
+	if (!cuda_launch_trace_enabled)
+		return false;
+	if (start == nullptr || end == nullptr)
+		return false;
+	// Avoid unbounded growth if the workload never synchronizes.
+	const uint32_t max_pending =
+		env_u32_local("BPFTIME_CUDA_KERNEL_TIMING_MAX_PENDING").value_or(1024u);
+	std::lock_guard<std::mutex> g(kernel_timing_mutex);
+	if (max_pending != 0 && pending_kernel_timings.size() >= max_pending) {
+		// Drop the newly created events. They will be destroyed by the caller.
+		return false;
+	}
+	pending_kernel_timings.push_back(pending_kernel_timing {
+		launch_seq,
+		kernel_name,
+		stream,
+		start,
+		end,
+	});
+	return true;
+}
+
+void nv_attach_impl::culink_track_owned_input(CUlinkState state,
+					      std::vector<uint8_t> &&bytes,
+					      const void **out_data,
+					      size_t *out_size)
+{
+	if (out_data == nullptr || out_size == nullptr)
+		return;
+	*out_data = nullptr;
+	*out_size = 0;
+	if (state == nullptr || bytes.empty())
+		return;
+	std::lock_guard<std::mutex> g(culink_owned_inputs_lock);
+	auto &v = culink_owned_inputs[state];
+	v.emplace_back(std::move(bytes));
+	const auto &back = v.back();
+	*out_data = back.data();
+	*out_size = back.size();
+}
+
+void nv_attach_impl::culink_release_state(CUlinkState state)
+{
+	if (state == nullptr)
+		return;
+	std::lock_guard<std::mutex> g(culink_owned_inputs_lock);
+	culink_owned_inputs.erase(state);
+}
+
+bool nv_attach_impl::cuda_launch_trace_is_enabled() const
+{
+	return cuda_launch_trace_enabled;
+}
+
+bool nv_attach_impl::cuda_launch_trace_stream_good() const
+{
+	return cuda_launch_trace_ofs.good();
+}
+
+std::string nv_attach_impl::cuda_launch_trace_path_copy() const
+{
+	return cuda_launch_trace_path;
+}
+
 void nv_attach_impl::record_patched_kernel_function(
 	const std::string &kernel_name, CUfunction function)
+{
+	record_patched_kernel_function_ex(kernel_name, function,
+					  PatchedKernelKind::Unknown, 0);
+}
+
+void nv_attach_impl::record_patched_kernel_function_ex(
+	const std::string &kernel_name, CUfunction function,
+	PatchedKernelKind kind, uint32_t target_func_id)
 {
 	if (kernel_name.empty() || function == nullptr)
 		return;
 	std::lock_guard<std::mutex> guard(cuda_symbol_map_mutex);
 	auto itr = patched_kernel_by_name.find(kernel_name);
 	if (itr == patched_kernel_by_name.end()) {
-		patched_kernel_by_name.emplace(kernel_name, function);
+		patched_kernel_by_name.emplace(kernel_name,
+					       PatchedKernelEntry {
+						       .function = function,
+						       .kind = kind,
+						       .target_func_id =
+							       target_func_id,
+					       });
 		return;
 	}
-	if (itr->second != function)
-		itr->second = function;
+	if (itr->second.function != function)
+		itr->second.function = function;
+	itr->second.kind = kind;
+	itr->second.target_func_id = target_func_id;
 }
 
 std::optional<CUfunction> nv_attach_impl::find_patched_kernel_function(
 	const std::string &kernel_name) const
+{
+	if (kernel_name.empty())
+		return std::nullopt;
+	std::lock_guard<std::mutex> guard(cuda_symbol_map_mutex);
+	auto itr = patched_kernel_by_name.find(kernel_name);
+	if (itr == patched_kernel_by_name.end())
+		return std::nullopt;
+	return itr->second.function;
+}
+
+std::optional<nv_attach_impl::PatchedKernelEntry>
+nv_attach_impl::find_patched_kernel_entry(const std::string &kernel_name) const
 {
 	if (kernel_name.empty())
 		return std::nullopt;
@@ -524,6 +2704,36 @@ void nv_attach_impl::record_original_cufunction_name(
 		itr->second = kernel_name;
 }
 
+void nv_attach_impl::record_original_cufunction_module(CUfunction function,
+						       CUmodule module)
+{
+	if (function == nullptr || module == nullptr)
+		return;
+	std::lock_guard<std::mutex> guard(cuda_symbol_map_mutex);
+	auto itr = module_by_cufunction.find(function);
+	if (itr == module_by_cufunction.end()) {
+		module_by_cufunction.emplace(function, module);
+		return;
+	}
+	if (itr->second != module)
+		itr->second = module;
+}
+
+void nv_attach_impl::record_original_cufunction_cukernel(CUfunction function,
+							 CUkernel kernel)
+{
+	if (function == nullptr || kernel == nullptr)
+		return;
+	std::lock_guard<std::mutex> guard(cuda_symbol_map_mutex);
+	auto itr = cukernel_by_cufunction.find(function);
+	if (itr == cukernel_by_cufunction.end()) {
+		cukernel_by_cufunction.emplace(function, kernel);
+		return;
+	}
+	if (itr->second != kernel)
+		itr->second = kernel;
+}
+
 std::optional<std::string>
 nv_attach_impl::find_original_kernel_name(CUfunction function) const
 {
@@ -532,6 +2742,190 @@ nv_attach_impl::find_original_kernel_name(CUfunction function) const
 	std::lock_guard<std::mutex> guard(cuda_symbol_map_mutex);
 	auto itr = kernel_name_by_cufunction.find(function);
 	if (itr == kernel_name_by_cufunction.end())
+		return std::nullopt;
+	return itr->second;
+}
+
+void nv_attach_impl::record_cuda_module_image(CUmodule module, const void *image,
+					      size_t size, uint64_t hash,
+					      bool patched, std::string_view api,
+					      const void *base_image,
+					      size_t base_size, uint64_t base_hash,
+					      uint32_t sm120_image_id,
+					      uint32_t base_sm120_image_id)
+{
+	if (module == nullptr || image == nullptr)
+		return;
+	cuda_module_image_info info;
+	info.image_ptr = reinterpret_cast<uint64_t>(image);
+	info.image_size = size;
+	info.image_hash = hash;
+	info.patched = patched;
+	info.sm120_image_id = sm120_image_id;
+	if (base_image != nullptr && base_size != 0) {
+		info.base_image_ptr = reinterpret_cast<uint64_t>(base_image);
+		info.base_image_size = base_size;
+		info.base_image_hash = base_hash;
+		info.base_sm120_image_id = base_sm120_image_id;
+	}
+	info.api = std::string(api);
+	std::lock_guard<std::mutex> guard(cuda_symbol_map_mutex);
+	module_image_by_module[module] = std::move(info);
+}
+
+void nv_attach_impl::record_cuda_library_image(CUlibrary library, const void *code,
+					       size_t size, uint64_t hash,
+					       bool patched, std::string_view api,
+					       const void *base_image,
+					       size_t base_size, uint64_t base_hash,
+					       uint32_t sm120_image_id,
+					       uint32_t base_sm120_image_id)
+{
+	if (library == nullptr || code == nullptr)
+		return;
+	cuda_module_image_info info;
+	info.image_ptr = reinterpret_cast<uint64_t>(code);
+	info.image_size = size;
+	info.image_hash = hash;
+	info.patched = patched;
+	info.sm120_image_id = sm120_image_id;
+	if (base_image != nullptr && base_size != 0) {
+		info.base_image_ptr = reinterpret_cast<uint64_t>(base_image);
+		info.base_image_size = base_size;
+		info.base_image_hash = base_hash;
+		info.base_sm120_image_id = base_sm120_image_id;
+	}
+	info.api = std::string(api);
+	std::lock_guard<std::mutex> guard(cuda_symbol_map_mutex);
+	library_image_by_library[library] = std::move(info);
+}
+
+void nv_attach_impl::record_cuda_module_image_from_library(CUmodule module,
+							   CUlibrary library,
+							   std::string_view api)
+{
+	if (module == nullptr || library == nullptr)
+		return;
+	std::lock_guard<std::mutex> guard(cuda_symbol_map_mutex);
+	auto it = library_image_by_library.find(library);
+	if (it == library_image_by_library.end())
+		return;
+	cuda_module_image_info info = it->second;
+	info.api = std::string(api);
+	module_image_by_module[module] = std::move(info);
+}
+
+std::optional<nv_attach_impl::cuda_module_image_info>
+nv_attach_impl::find_cuda_module_image_by_function(CUfunction function) const
+{
+	if (function == nullptr)
+		return std::nullopt;
+	std::lock_guard<std::mutex> guard(cuda_symbol_map_mutex);
+	if (auto it_mod = module_by_cufunction.find(function);
+	    it_mod != module_by_cufunction.end()) {
+		if (auto it_img = module_image_by_module.find(it_mod->second);
+		    it_img != module_image_by_module.end()) {
+			return it_img->second;
+		}
+	}
+	// cuLibraryLoadData -> cuLibraryGetKernel -> cuKernelGetFunction path
+	if (auto it_k = cukernel_by_cufunction.find(function);
+	    it_k != cukernel_by_cufunction.end()) {
+		if (auto it_lib = library_by_cukernel.find(it_k->second);
+		    it_lib != library_by_cukernel.end()) {
+			if (auto it_img = library_image_by_library.find(it_lib->second);
+			    it_img != library_image_by_library.end()) {
+				return it_img->second;
+			}
+		}
+	}
+	return std::nullopt;
+}
+
+std::optional<CUmodule>
+nv_attach_impl::resolve_cumodule_for_cufunction(CUfunction function)
+{
+	if (function == nullptr)
+		return std::nullopt;
+
+	// Fast path: already known CUmodule.
+	{
+		std::lock_guard<std::mutex> guard(cuda_symbol_map_mutex);
+		if (auto it_mod = module_by_cufunction.find(function);
+		    it_mod != module_by_cufunction.end()) {
+			return it_mod->second;
+		}
+	}
+
+	// cuLibraryLoadData -> cuLibraryGetKernel -> cuKernelGetFunction path:
+	// resolve CUmodule via owning CUlibrary.
+	CUlibrary lib = nullptr;
+	{
+		std::lock_guard<std::mutex> guard(cuda_symbol_map_mutex);
+		if (auto it_k = cukernel_by_cufunction.find(function);
+		    it_k != cukernel_by_cufunction.end()) {
+			if (auto it_lib = library_by_cukernel.find(it_k->second);
+			    it_lib != library_by_cukernel.end()) {
+				lib = it_lib->second;
+			}
+		}
+	}
+	if (lib == nullptr)
+		return std::nullopt;
+
+	if (original_cu_library_get_module == nullptr)
+		return std::nullopt;
+	auto cuLibraryGetModule = reinterpret_cast<CUresult (*)(CUmodule *, CUlibrary)>(
+		original_cu_library_get_module);
+
+	CUmodule mod = nullptr;
+	if (cuLibraryGetModule(&mod, lib) != CUDA_SUCCESS || mod == nullptr)
+		return std::nullopt;
+
+	record_original_cufunction_module(function, mod);
+	record_cuda_module_image_from_library(mod, lib,
+					      "resolve_cumodule_for_cufunction");
+	return mod;
+}
+
+void nv_attach_impl::record_original_cukernel_name(CUkernel kernel,
+						   const std::string &kernel_name)
+{
+	if (kernel == nullptr || kernel_name.empty())
+		return;
+	std::lock_guard<std::mutex> guard(cuda_symbol_map_mutex);
+	auto itr = kernel_name_by_cukernel.find(kernel);
+	if (itr == kernel_name_by_cukernel.end()) {
+		kernel_name_by_cukernel.emplace(kernel, kernel_name);
+		return;
+	}
+	if (itr->second != kernel_name)
+		itr->second = kernel_name;
+}
+
+void nv_attach_impl::record_original_cukernel_library(CUkernel kernel,
+						      CUlibrary library)
+{
+	if (kernel == nullptr || library == nullptr)
+		return;
+	std::lock_guard<std::mutex> guard(cuda_symbol_map_mutex);
+	auto it = library_by_cukernel.find(kernel);
+	if (it == library_by_cukernel.end()) {
+		library_by_cukernel.emplace(kernel, library);
+		return;
+	}
+	if (it->second != library)
+		it->second = library;
+}
+
+std::optional<std::string>
+nv_attach_impl::find_original_cukernel_name(CUkernel kernel) const
+{
+	if (kernel == nullptr)
+		return std::nullopt;
+	std::lock_guard<std::mutex> guard(cuda_symbol_map_mutex);
+	auto itr = kernel_name_by_cukernel.find(kernel);
+	if (itr == kernel_name_by_cukernel.end())
 		return std::nullopt;
 	return itr->second;
 }
@@ -556,9 +2950,47 @@ nv_attach_impl::extract_ptxs(std::vector<uint8_t> &&data_vec)
 	boost::process::environment env = boost::this_process::environment();
 	env["LD_PRELOAD"] = "";
 
+	auto find_cuobjdump = []() -> std::string {
+		if (const char *p = std::getenv("CUOBJDUMP");
+		    p != nullptr && p[0] != '\0') {
+			return p;
+		}
+		if (const char *cuda_root = std::getenv("BPFTIME_CUDA_ROOT");
+		    cuda_root != nullptr && cuda_root[0] != '\0') {
+			auto candidate = std::filesystem::path(cuda_root) /
+					 "bin" / "cuobjdump";
+			if (std::filesystem::exists(candidate))
+				return candidate.string();
+		}
+		if (const char *cuda_home = std::getenv("CUDA_HOME");
+		    cuda_home != nullptr && cuda_home[0] != '\0') {
+			auto candidate = std::filesystem::path(cuda_home) /
+					 "bin" / "cuobjdump";
+			if (std::filesystem::exists(candidate))
+				return candidate.string();
+		}
+		if (const char *cuda_path = std::getenv("CUDA_PATH");
+		    cuda_path != nullptr && cuda_path[0] != '\0') {
+			auto candidate = std::filesystem::path(cuda_path) /
+					 "bin" / "cuobjdump";
+			if (std::filesystem::exists(candidate))
+				return candidate.string();
+		}
+		{
+			auto candidate =
+				std::filesystem::path("/usr/local/cuda/bin") /
+				"cuobjdump";
+			if (std::filesystem::exists(candidate))
+				return candidate.string();
+		}
+		return "cuobjdump";
+	};
+
+	const auto cuobjdump_bin = find_cuobjdump();
+
 	// Build command line - use shell to properly search PATH
-	auto cuobjdump_cmd_line = std::string("cuobjdump --extract-ptx all ") +
-				  fatbin_path.string();
+	auto cuobjdump_cmd_line =
+		cuobjdump_bin + " --extract-ptx all " + fatbin_path.string();
 	SPDLOG_INFO("Calling cuobjdump: {}", cuobjdump_cmd_line);
 
 	// Execute through shell to properly use PATH

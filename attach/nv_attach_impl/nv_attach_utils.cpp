@@ -25,6 +25,34 @@ static std::string rewrite_ptx_target(std::string ptx,
 {
 	if (sm_arch.empty())
 		return ptx;
+
+	// Similar to nv_attach_fatbin_record.cpp: when targeting very new SMs
+	// (e.g. sm_120), older `.version` directives can make ptxas reject the PTX
+	// after we rewrite `.target`. Bump conservatively.
+	if (sm_arch.rfind("sm_12", 0) == 0) {
+		auto vpos = ptx.find(".version");
+		if (vpos != std::string::npos) {
+			auto p = vpos + strlen(".version");
+			while (p < ptx.size() && (ptx[p] == ' ' || ptx[p] == '\t'))
+				p++;
+			auto start = p;
+			while (p < ptx.size() &&
+			       ((ptx[p] >= '0' && ptx[p] <= '9') || ptx[p] == '.'))
+				p++;
+			if (p > start) {
+				double ver = 0.0;
+				try {
+					ver = std::stod(ptx.substr(start, p - start));
+				} catch (...) {
+					ver = 0.0;
+				}
+				if (ver > 0.0 && ver < 8.7) {
+					ptx.replace(start, p - start, "8.7");
+				}
+			}
+		}
+	}
+
 	auto pos = ptx.find(".target");
 	if (pos == std::string::npos)
 		return ptx;

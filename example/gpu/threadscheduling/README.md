@@ -52,6 +52,26 @@ BPFTIME_LOG_OUTPUT=console LD_PRELOAD=build/runtime/syscall-server/libbpftime-sy
   example/gpu/threadscheduling/threadscheduling
 ```
 
+#### Attaching to a vLLM/PyTorch CUDA kernel
+
+You can attach the same SM/Warp/Lane probe to an arbitrary CUDA kernel symbol
+name (e.g. one you observe from `cuLaunchKernel` tracing):
+
+```bash
+BPFTIME_LOG_OUTPUT=console LD_PRELOAD=build/runtime/syscall-server/libbpftime-syscall-server.so \
+  example/gpu/threadscheduling/threadscheduling --func '<CUDA_KERNEL_SYMBOL_NAME>'
+```
+
+Notes:
+- This works best for kernels that bpftime can instrument (typically kernels
+  that have PTX available in a fatbin or are loaded from PTX); SASS-only kernels
+  (common for cuBLAS/cuDNN/flash-attn) may require SASS-level support.
+- Attaching to very hot / very large-grid kernels can be expensive because the
+  probe executes on the GPU; start with a smaller kernel first.
+- If you are targeting a pip/conda `torch` wheel, many kernels are distributed
+  as cubin-only fatbins without embedded PTX; in that case PTX-level kprobe
+  insertion won’t work and you’ll need SASS-level support.
+
 ### Terminal 2: Run the CUDA Application (Client)
 
 ```bash
@@ -165,4 +185,3 @@ The userspace loader (`threadscheduling.c`) periodically:
 1. Reads the BPF maps
 2. Computes statistics and histograms
 3. Displays the mapping visualization
-
